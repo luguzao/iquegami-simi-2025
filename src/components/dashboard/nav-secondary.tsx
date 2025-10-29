@@ -9,9 +9,9 @@ import {
   SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
+  SidebarMenuItem
 } from "@/components/ui/sidebar"
+import { useRouter } from "next/navigation"
 
 export function NavSecondary({
   items,
@@ -22,14 +22,16 @@ export function NavSecondary({
     icon?: Icon
   }[]
 }) {
-  const { isMobile } = useSidebar()
+  const router = useRouter()
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel className="text-primary">Administração</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
-          <SidebarMenuItem key={item.title}>
+          <SidebarMenuItem key={item.title} onClick={() => {
+              router.push(item.url)
+            }}>
             <SidebarMenuButton tooltip={item.title}>
               {item.icon && <item.icon className="text-primary" />}
               <span>{item.title}</span>

@@ -1,9 +1,11 @@
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
+import { redirect } from "next/navigation"
 
 export default function DashboardPage() {
   const breadcrumbs = [
     { title: "Início", url: "/" },
   ]
+  redirect("/dashboard/colaboradores")
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
