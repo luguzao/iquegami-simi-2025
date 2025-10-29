@@ -2,6 +2,13 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react"
 import QrScanner from "qr-scanner"
+
+// Importante: o `qr-scanner` precisa carregar um worker. Em ambientes Next.js
+// colocamos o worker em `public/` e apontamos `WORKER_PATH` para ele.
+if (typeof window !== "undefined") {
+  // @ts-ignore - a propriedade WORKER_PATH existe em runtime no pacote
+  QrScanner.WORKER_PATH = "/qr-scanner-worker.min.js"
+}
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -25,13 +32,21 @@ interface QRCodeData {
 export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const qrScannerRef = useRef<QrScanner | null>(null)
+  const isStartingRef = useRef(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasPermission, setHasPermission] = useState<boolean | null>(null)
   const [scannedData, setScannedData] = useState<QRCodeData | null>(null)
   const [isScanning, setIsScanning] = useState(true)
+  const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([])
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
+  const startAttemptsRef = useRef(0)
+  const MAX_START_RETRIES = 1
 
   const stopScanner = useCallback(() => {
+    // Se está em processo de iniciar, cancelar a flag para evitar race
+    isStartingRef.current = false
+
     if (qrScannerRef.current) {
       try {
         qrScannerRef.current.stop()
@@ -86,6 +101,11 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
   }, [])
 
   const startScanner = useCallback(async () => {
+    // Evitar chamadas concorrentes que causam play() interrompido
+    if (isStartingRef.current || qrScannerRef.current) {
+      return
+    }
+
     // Aguardar o elemento de vídeo estar disponível
     let attempts = 0
     while (!videoRef.current && attempts < 10) {
@@ -95,14 +115,14 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
 
     if (!videoRef.current) {
       setError("Elemento de vídeo não encontrado")
-      setIsLoading(false)
       return
     }
 
+    isStartingRef.current = true
     setIsLoading(true)
     setError(null)
 
-  try {
+    try {
       // Primeiro verificar se há câmeras disponíveis
       const hasCamera = await QrScanner.hasCamera()
       if (!hasCamera) {
@@ -111,14 +131,9 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
         return
       }
 
-      // Solicitar permissão se ainda não temos
-      if (hasPermission === null) {
-        const permissionGranted = await requestCameraPermission()
-        if (!permissionGranted) {
-          setIsLoading(false)
-          return
-        }
-      }
+      // Não solicitar permissão manualmente aqui para evitar duas chamadas
+      // a getUserMedia (uma no requestCameraPermission e outra no QrScanner.start)
+      // Isso evita races que resultam em "The play() request was interrupted".
 
       // Verificar novamente se o vídeo ainda existe antes de criar o scanner
       if (!videoRef.current) {
@@ -128,9 +143,12 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
       }
 
       // Criar o scanner
-      qrScannerRef.current = new QrScanner(
-        videoRef.current,
-        (result) => {
+      // Se o QrScanner já existir (race), não recriar
+      if (!qrScannerRef.current) {
+        // @ts-ignore - passar preferredCamera nas opções
+        qrScannerRef.current = new QrScanner(
+          videoRef.current,
+          (result) => {
           console.log("QR Code detectado:", result)
           
           // Parar o scanner imediatamente
@@ -171,13 +189,39 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
         }
       )
 
+  }
+
+      // Se o usuário selecionou uma câmera, configurar antes de iniciar
+      if (selectedDeviceId) {
+        try {
+          await qrScannerRef.current.setCamera(selectedDeviceId)
+        } catch (e) {
+          console.warn("Falha ao setar câmera selecionada:", e)
+        }
+      }
+
       // Iniciar o scanner
       await qrScannerRef.current.start()
-      setIsLoading(false)
       console.log("Scanner iniciado com sucesso")
+      startAttemptsRef.current = 0
       
     } catch (err: unknown) {
       console.error("Erro ao iniciar scanner:", err)
+      // Se for um erro de play interrompido (race), apenas logamos e não
+      // mostramos uma mensagem de erro crítica ao usuário automaticamente.
+      const maybe = err as any
+      if (maybe && (maybe.name === 'AbortError' || (typeof maybe.message === 'string' && maybe.message.toLowerCase().includes('play')))) {
+        console.warn('Play request interrompido — tentativa concorrente ou navegador bloqueou autoplay.')
+        // Retry leve: tentar reiniciar uma vez mais após um pequeno delay
+        if (startAttemptsRef.current < MAX_START_RETRIES) {
+          startAttemptsRef.current = (startAttemptsRef.current || 0) + 1
+          console.debug('Tentativa de restart #' + startAttemptsRef.current + ' após play interrompido')
+          setTimeout(() => {
+            startScanner()
+          }, 300)
+          return
+        }
+      }
       let errorMessage = "Erro ao acessar a câmera"
 
       if (err && typeof err === 'object' && 'name' in err) {
@@ -198,9 +242,13 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
       }
 
       setError(errorMessage)
+    }
+    finally {
+      // Garantir flags sempre resetadas
+      isStartingRef.current = false
       setIsLoading(false)
     }
-  }, [hasPermission, requestCameraPermission])
+  }, [hasPermission, requestCameraPermission, selectedDeviceId])
 
   // Efeito para iniciar/parar scanner quando modal abre/fecha
   useEffect(() => {
@@ -213,6 +261,8 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
       // Pequeno delay para garantir que o DOM esteja pronto
       const timer = setTimeout(() => {
         startScanner()
+        // Tentar popular a lista de câmeras para permitir seleção
+        refreshCameras()
       }, 100)
       
       return () => {
@@ -262,6 +312,7 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
     return () => {
       // Garantir que tudo seja limpo ao desmontar
       try {
+        isStartingRef.current = false
         if (qrScannerRef.current) {
           qrScannerRef.current.stop()
           qrScannerRef.current.destroy()
@@ -307,6 +358,29 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
     // O useEffect vai cuidar de iniciar o scanner
   }
 
+  const refreshCameras = useCallback(async () => {
+    try {
+      // force=true para tentar obter labels (pode abrir um prompt se necessário)
+      const list = await QrScanner.listCameras(true)
+      setCameras(list)
+      if (!selectedDeviceId && list.length) {
+        setSelectedDeviceId(list[0].id)
+      }
+      console.debug('Câmeras encontradas:', list)
+    } catch (err) {
+      console.warn('Erro ao listar câmeras:', err)
+    }
+  }, [selectedDeviceId])
+
+  // Quando o usuário troca a câmera selecionada, aplicar no scanner já existente
+  useEffect(() => {
+    if (qrScannerRef.current && selectedDeviceId) {
+      qrScannerRef.current.setCamera(selectedDeviceId).catch((e: any) => {
+        console.warn('Falha ao aplicar câmera selecionada no scanner:', e)
+      })
+    }
+  }, [selectedDeviceId])
+
   const formatQRData = (data: string) => {
     // Tentar determinar o tipo de QR code
     if (data.startsWith('http://') || data.startsWith('https://')) {
@@ -340,6 +414,23 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
             }
           </DialogDescription>
         </DialogHeader>
+        {/* Seletor de câmera colocado acima do preview para não atrapalhar a visão */}
+        {isOpen && isScanning && (
+          <div className="mb-3 flex items-center justify-end gap-2">
+            <label className="sr-only">Câmera</label>
+            <select
+              value={selectedDeviceId ?? ""}
+              onChange={(e) => setSelectedDeviceId(e.target.value || null)}
+              className="text-sm bg-white text-gray-900 px-2 py-1 rounded border"
+            >
+              <option value="">Selecionar câmera</option>
+              {cameras.map(cam => (
+                <option key={cam.id} value={cam.id}>{cam.label}</option>
+              ))}
+            </select>
+            <Button variant="outline" onClick={refreshCameras}>Atualizar</Button>
+          </div>
+        )}
 
         <div className="relative w-full">
           {scannedData && !isScanning ? (

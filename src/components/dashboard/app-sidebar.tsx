@@ -7,6 +7,7 @@ import {
   IconSettings,
   IconUsers,
   IconUserScreen,
+  IconZoom,
 } from "@tabler/icons-react"
 
 import { NavSecondary } from "@/components/dashboard/nav-secondary"
@@ -36,6 +37,11 @@ const data = {
       title: "Colaboradores",
       url: "/dashboard/colaboradores",
       icon: IconUsers,
+    },
+    {
+      title: "Auditoria",
+      url: "/dashboard/auditoria",
+      icon: IconZoom,
     },
     {
       title: "Relatórios",
