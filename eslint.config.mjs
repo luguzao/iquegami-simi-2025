@@ -19,7 +19,13 @@ const eslintConfig = [
       "build/**",
       "next-env.d.ts",
     ],
+    // Project-specific rule overrides
+    rules: {
+      // Allow using `any` in some places; the codebase occasionally narrows unknowns manually
+      "@typescript-eslint/no-explicit-any": "off",
+    },
   },
+  
 ];
 
 export default eslintConfig;
