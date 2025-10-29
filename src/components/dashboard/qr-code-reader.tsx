@@ -68,7 +68,7 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
     }
   }, [])
 
-  const requestCameraPermission = async () => {
+  const requestCameraPermission = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: "environment" } 
@@ -83,9 +83,9 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
       setError("Permissão de câmera negada ou câmera não disponível")
       return false
     }
-  }
+  }, [])
 
-  const startScanner = async () => {
+  const startScanner = useCallback(async () => {
     // Aguardar o elemento de vídeo estar disponível
     let attempts = 0
     while (!videoRef.current && attempts < 10) {
@@ -102,7 +102,7 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
     setIsLoading(true)
     setError(null)
 
-    try {
+  try {
       // Primeiro verificar se há câmeras disponíveis
       const hasCamera = await QrScanner.hasCamera()
       if (!hasCamera) {
@@ -176,24 +176,31 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
       setIsLoading(false)
       console.log("Scanner iniciado com sucesso")
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao iniciar scanner:", err)
       let errorMessage = "Erro ao acessar a câmera"
-      
-      if (err.name === "NotAllowedError") {
-        errorMessage = "Permissão de câmera negada. Por favor, permita o acesso à câmera."
-      } else if (err.name === "NotFoundError") {
-        errorMessage = "Nenhuma câmera encontrada no dispositivo."
-      } else if (err.name === "NotSupportedError") {
-        errorMessage = "Câmera não suportada neste navegador."
-      } else if (err.name === "NotReadableError") {
-        errorMessage = "Câmera está sendo usada por outro aplicativo."
+
+      if (err && typeof err === 'object' && 'name' in err) {
+        const e = err as { name?: string; message?: string }
+        if (e.name === "NotAllowedError") {
+          errorMessage = "Permissão de câmera negada. Por favor, permita o acesso à câmera."
+        } else if (e.name === "NotFoundError") {
+          errorMessage = "Nenhuma câmera encontrada no dispositivo."
+        } else if (e.name === "NotSupportedError") {
+          errorMessage = "Câmera não suportada neste navegador."
+        } else if (e.name === "NotReadableError") {
+          errorMessage = "Câmera está sendo usada por outro aplicativo."
+        } else if (e.message) {
+          errorMessage = e.message
+        }
+      } else {
+        errorMessage = String(err)
       }
-      
+
       setError(errorMessage)
       setIsLoading(false)
     }
-  }
+  }, [hasPermission, requestCameraPermission])
 
   // Efeito para iniciar/parar scanner quando modal abre/fecha
   useEffect(() => {
@@ -221,7 +228,7 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
       setIsLoading(false)
       setHasPermission(null)
     }
-  }, [isOpen, stopScanner])
+  }, [isOpen, stopScanner, startScanner])
 
   // Efeito para iniciar scanner quando isScanning muda para true
   useEffect(() => {
@@ -232,7 +239,7 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
       
       return () => clearTimeout(timer)
     }
-  }, [isScanning])
+  }, [isOpen, isScanning, scannedData, startScanner])
 
   // Efeito para limpar highlights quando não está escaneando
   useEffect(() => {
@@ -251,6 +258,7 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
 
   // Cleanup ao desmontar componente
   useEffect(() => {
+    const currentVideo = videoRef.current
     return () => {
       // Garantir que tudo seja limpo ao desmontar
       try {
@@ -261,8 +269,8 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
         }
         
         // Parar todas as tracks de mídia
-        if (videoRef.current?.srcObject) {
-          const stream = videoRef.current.srcObject as MediaStream
+        if (currentVideo?.srcObject) {
+          const stream = currentVideo.srcObject as MediaStream
           stream.getTracks().forEach(track => track.stop())
         }
       } catch (error) {
