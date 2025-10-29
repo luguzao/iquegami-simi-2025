@@ -58,6 +58,32 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const [currentUser, setCurrentUser] = React.useState<{ name: string; email: string; avatar: string } | null>(null)
+
+  React.useEffect(() => {
+    let mounted = true
+    const load = async () => {
+      try {
+        const supabase = (await import('@/lib/supabase')).createClient()
+        const { data } = await supabase.auth.getUser()
+        const user = data?.user ?? null
+        if (!mounted) return
+        if (user) {
+          setCurrentUser({
+            name: String(user.user_metadata?.name || user.email || 'Usuário'),
+            email: String(user.email || ''),
+            avatar: String(user.user_metadata?.avatar || '/avatars/shadcn.jpg'),
+          })
+        } else {
+          setCurrentUser(null)
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    load()
+    return () => { mounted = false }
+  }, [])
   return (
     <Sidebar collapsible="offcanvas" className="overflow-x-hidden" {...props}>
       <SidebarHeader>
@@ -83,7 +109,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={data.navSecondary} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={currentUser ?? data.user} />
       </SidebarFooter>
     </Sidebar>
   )
