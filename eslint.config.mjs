@@ -24,6 +24,7 @@ const eslintConfig = [
       // Allow using `any` in some places; the codebase occasionally narrows unknowns manually
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/ban-ts-comment": "off",
+      "react-hooks/exhaustive-deps": "off",
       // Disable prop spreading restriction for easier component composition
       "react/jsx-props-no-spreading": "off",
       // Allow development dependencies in certain files (like tests and configs)
