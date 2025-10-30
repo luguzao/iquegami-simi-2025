@@ -14,15 +14,19 @@ export async function POST(req: Request) {
     const supabase = createServerSupabase()
     const body: Body = await req.json()
 
-    let employeeId = body.employeeId
+  let employeeId = body.employeeId
+  // sanitize string 'null' coming from clients
+  if (employeeId === 'null') employeeId = undefined
 
     // If qrContent provided and employeeId not provided, try to find employee by id stored in qr
     if (!employeeId && body.qrContent) {
       // assume qrContent holds the employee id
+      // avoid searching for literal 'null'
+      const qrContentToSearch = body.qrContent === 'null' ? undefined : body.qrContent
       const { data: empData, error: empErr } = await supabase
         .from('employees')
         .select('id, name, cpf')
-        .eq('id', body.qrContent)
+        .eq('id', qrContentToSearch)
         .limit(1)
         .single()
 

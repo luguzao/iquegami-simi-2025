@@ -10,6 +10,7 @@ if (typeof window !== "undefined") {
   QrScanner.WORKER_PATH = "/qr-scanner-worker.min.js"
 }
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 import {
   Dialog,
   DialogContent,
@@ -37,6 +38,9 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
   const [error, setError] = useState<string | null>(null)
   const [hasPermission, setHasPermission] = useState<boolean | null>(null)
   const [scannedData, setScannedData] = useState<QRCodeData | null>(null)
+  const [employeeInfo, setEmployeeInfo] = useState<any | null>(null)
+  const [lastAttendance, setLastAttendance] = useState<any | null>(null)
+  const [isPerforming, setIsPerforming] = useState(false)
   const [isScanning, setIsScanning] = useState(true)
   const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([])
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
@@ -400,6 +404,108 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
     }
   }
 
+  // When scannedData is set, try to fetch employee info and last attendance
+  useEffect(() => {
+    if (!scannedData) {
+      setEmployeeInfo(null)
+      setLastAttendance(null)
+      return
+    }
+
+    let mounted = true
+
+    const fetchInfo = async () => {
+      try {
+        // Try to fetch employee by id (most common: QR contains employee.id)
+        const { createClient } = await import("@/lib/supabase")
+        const supabase = createClient()
+        const qr = scannedData.content
+
+        // try find by id first
+        let { data: emp } = await supabase
+          .from('employees')
+          .select('id,name,cpf,store,position,sector,role,isInternal,startDate')
+          .eq('id', qr)
+          .limit(1)
+          .single()
+
+        // if not found and QR looks like CPF or numeric, try search by cpf
+        if (!emp) {
+          if (/^\d{11}$/.test(qr) || /^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(qr)) {
+            const cpf = qr.replace(/\D/g, '')
+            const { data: byCpf } = await supabase.from('employees').select('id,name,cpf,store,position,sector,role,isInternal,startDate').eq('cpf', cpf).limit(1).single()
+            emp = byCpf as any
+          }
+        }
+
+        if (mounted) setEmployeeInfo(emp ?? null)
+
+        // fetch last attendance entry for this employee to determine action
+        if (emp && emp.id) {
+          try {
+            const url = `/api/auditoria/last-entries?employeeId=${encodeURIComponent(emp.id)}&limit=1`
+            const res = await fetch(url)
+            if (res.ok) {
+              const json = await res.json()
+              const items = json.items || []
+              if (items.length > 0) {
+                const last = items[0]
+                if (mounted) setLastAttendance(last)
+              } else {
+                if (mounted) setLastAttendance(null)
+              }
+            }
+          } catch (err) {
+            console.warn('Erro ao buscar último registro de ponto', err)
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao buscar informações do colaborador', err)
+      }
+    }
+
+    fetchInfo()
+
+    return () => { mounted = false }
+  }, [scannedData])
+
+  const performAttendance = async (type?: 'checkin' | 'checkout') => {
+    if (!scannedData) return
+    setIsPerforming(true)
+    try {
+      const payload: any = { qrContent: scannedData.content }
+      if (employeeInfo && employeeInfo.id) payload.employeeId = employeeInfo.id
+      if (type) payload.type = type
+
+      const res = await fetch('/api/auditoria/perform', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      if (!res.ok) {
+        const txt = await res.text()
+        throw new Error(txt || 'Erro ao registrar ponto')
+      }
+
+      const json = await res.json()
+      const item = json.item || json
+      if (item) setLastAttendance(item)
+
+      // show success toast and close the modal
+      toast.success('Ponto registrado com sucesso')
+      // small delay so user sees the toast before modal closes
+      setTimeout(() => {
+        handleClose()
+      }, 300)
+    } catch (err: any) {
+  console.error('Erro ao perform attendance', err)
+  try { toast.error('Erro ao registrar ponto: ' + (err.message || String(err))) } catch (e) { /* ignore */ }
+    } finally {
+      setIsPerforming(false)
+    }
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-md">
@@ -434,41 +540,59 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
 
         <div className="relative w-full">
           {scannedData && !isScanning ? (
-            // Tela de resultados
+            // Tela de resultados com informações do usuário e ação de ponto
             <div className="space-y-4">
               <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                   <span className="text-green-700 font-medium">QR Code escaneado com sucesso!</span>
                 </div>
-                <p className="text-sm text-green-600">
-                  {scannedData.scannedAt.toLocaleString('pt-BR')}
-                </p>
+                <p className="text-sm text-green-600">{scannedData.scannedAt.toLocaleString('pt-BR')}</p>
               </div>
 
               <div className="space-y-3">
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Tipo:</label>
-                  <p className="mt-1 text-sm bg-gray-50 p-2 rounded border">
-                    {formatQRData(scannedData.content).type}
-                  </p>
+                {/* Employee info */}
+                {employeeInfo ? (
+                  <div className="p-3 bg-white rounded border">
+                    <p className="font-semibold text-lg">{employeeInfo.name}</p>
+                    <p className="text-sm text-muted-foreground">CPF: {employeeInfo.cpf}</p>
+                    {employeeInfo.position && <p className="text-sm">Cargo: {employeeInfo.position}</p>}
+                    {employeeInfo.store && <p className="text-sm">Loja: {employeeInfo.store}</p>}
+                    {employeeInfo.sector && <p className="text-sm">Setor: {employeeInfo.sector}</p>}
+                  </div>
+                ) : (
+                  <div className="p-3 bg-yellow-50 rounded border">
+                    <p className="text-sm text-yellow-800">Usuário não encontrado no sistema.</p>
+                  </div>
+                )}
+
+                {/* Action buttons based on last attendance */}
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600">Última ação: {lastAttendance ? `${lastAttendance.type} — ${new Date(lastAttendance.created_at).toLocaleString('pt-BR')}` : 'Nenhuma'}</p>
+                  <div className="flex flex-col gap-2">
+                      {(() => {
+                        const nextAction = lastAttendance?.type === 'checkin' ? 'checkout' : 'checkin'
+                        const actionLabel = nextAction === 'checkin' ? 'Registrar Check-in' : 'Registrar Check-out'
+                        return (
+                          <Button
+                            onClick={() => performAttendance(nextAction as 'checkin' | 'checkout')}
+                            className="w-full"
+                            disabled={isPerforming}
+                          >
+                            {isPerforming ? 'Registrando...' : actionLabel}
+                          </Button>
+                        )
+                      })()}
+                  </div>
                 </div>
 
+                {/* Raw QR content and type (optional) */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Conteúdo:</label>
+                  <label className="text-sm font-medium text-gray-700">Conteúdo do QR:</label>
                   <div className="mt-1 p-3 bg-gray-50 rounded border max-h-32 overflow-y-auto">
                     <p className="text-sm break-all">{scannedData.content}</p>
                   </div>
                 </div>
-
-                {formatQRData(scannedData.content).type === 'URL' && (
-                  <Button 
-                    onClick={() => window.open(scannedData.content, '_blank')}
-                    className="w-full"
-                  >
-                    Abrir Link
-                  </Button>
-                )}
               </div>
             </div>
           ) : error ? (

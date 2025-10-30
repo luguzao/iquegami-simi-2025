@@ -14,7 +14,8 @@ export async function GET(req: Request) {
     const { data, error, count } = await supabase
       .from('attendance_logs')
       .select('id,employee_id,qr_content,type,created_at,note,manual', { count: 'exact' })
-      .neq('employee_id', null)
+      // Use PostgREST null-safe filter for NOT NULL
+      .not('employee_id', 'is', null)
       .in('type', ['checkin', 'checkout'])
       .order('created_at', { ascending: false })
       .range(from, to)

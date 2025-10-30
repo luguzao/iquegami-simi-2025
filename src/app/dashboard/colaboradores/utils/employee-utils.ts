@@ -40,81 +40,83 @@ export const normalizeDate = (dateStr: string): string | undefined => {
  * Gera código ZPL para uma etiqueta de funcionário
  */
 export const generateEmployeeLabel = (employee: Employee): string => {
+  // Keep original structure (internal vs external) but adjust for 100mm x 60mm label
+  const dpi = 203
+  const mmToDots = (mm: number) => Math.round((dpi / 25.4) * mm)
+  const widthDots = mmToDots(100) // ~799
+  const heightDots = mmToDots(60) // ~480
+
   const employeeData = employee.id
+
+  // QR and column positioning (shared for both internal/external layouts)
+  const qrColumnStart = widthDots - mmToDots(36) // QR column approx
+  const qrXPos = Math.max((qrColumnStart - 40), 420)
+  // keep text closer to the left edge
+  const marginLeft = 20
+  const leftColumnX = marginLeft
+
+  // Reusable helper to break long names into multiple lines
+  const breakTextIntoLines = (text: string, maxLength: number = 35): string[] => {
+    if (!text) return []
+    const words = text.split(' ')
+    const lines: string[] = []
+    let currentLine = ''
+
+    for (const word of words) {
+      if ((currentLine + ' ' + word).trim().length <= maxLength) {
+        currentLine += (currentLine ? ' ' : '') + word
+      } else {
+        if (currentLine) lines.push(currentLine)
+        currentLine = word
+      }
+    }
+    if (currentLine) lines.push(currentLine)
+    return lines
+  }
 
   let zpl: string
 
   if (employee.isInternal) {
-    // Etiqueta para colaboradores internos (formato original)
-    // Função para quebrar texto em linhas de no máximo 20 caracteres
-    const breakTextIntoLines = (text: string, maxLength: number = 20): string[] => {
-      const words = text.split(' ')
-      const lines: string[] = []
-      let currentLine = ''
-
-      for (const word of words) {
-        if ((currentLine + ' ' + word).length <= maxLength) {
-          currentLine += (currentLine ? ' ' : '') + word
-        } else {
-          if (currentLine) lines.push(currentLine)
-          currentLine = word
-        }
-      }
-      if (currentLine) lines.push(currentLine)
-      return lines
-    }
-
+    // Etiqueta para colaboradores internos (mantendo estrutura original)
     const nameLines = breakTextIntoLines(employee.name, 35)
-    const nameHeight = nameLines.length * 40 // 40 pontos por linha
+    const nameHeight = nameLines.length * 40 // 40 pontos por linha (como antes)
 
-    // Gerar ZPL para as linhas do nome
+    // estimate other fields count to compute vertical centering
+    const otherFields = [employee.cpf, employee.store, employee.position, employee.sector].filter(f => !!f).length + 1 // +1 for date
+    const otherFieldsHeight = otherFields * 40
+    const totalContentHeight = nameHeight + 10 + otherFieldsHeight
+    const topOffset = Math.max(8, Math.round((heightDots - totalContentHeight) / 2))
+
+    // Gerar ZPL para as linhas do nome (vertically centered)
     const nameZpl = nameLines.map((line, index) =>
-      `^FO50,${30 + index * 40}^A0N,30,30^FD${index === 0 ? 'Nome: ' : ''}${line}^FS`
+      `^FO${leftColumnX},${topOffset + index * 40}^A0N,30,30^FD${index === 0 ? 'Nome: ' : ''}${line}^FS`
     ).join('\n')
 
-    const baseY = 30 + nameHeight + 10 // Espaço menor após o nome
+    const baseY = topOffset + nameHeight + 10 // Espaço menor após o nome
 
-    zpl = `^XA
-^CI28
-^PW799
-^LL500
-${nameZpl}
-^FO50,${baseY}^A0N,30,30^FDCPF: ${employee.cpf}^FS
-^FO50,${baseY + 40}^A0N,30,30^FDLoja: ${employee.store}^FS
-^FO50,${baseY + 80}^A0N,30,30^FDCargo: ${employee.position}^FS
-^FO50,${baseY + 120}^A0N,30,30^FDSetor: ${employee.sector}^FS
-^FO50,${baseY + 160}^A0N,30,30^FDData: ${employee.startDate ? dayjs(employee.startDate).format("DD/MM/YYYY") : "N/A"}^FS
-^FO600,20^BQN,2,9,Q,7^FDQA,${employeeData}^FS
-^XZ`
+    const qrSizeMm = 36
+    const qrY = Math.round((heightDots - mmToDots(qrSizeMm)) / 2)
+    zpl = `^XA\n^CI28\n^PW${widthDots}\n^LL${heightDots}\n${nameZpl}\n^FO${leftColumnX},${baseY}^A0N,30,30^FDCPF: ${employee.cpf}^FS\n^FO${leftColumnX},${baseY + 40}^A0N,30,30^FDLoja: ${employee.store}^FS\n^FO${leftColumnX},${baseY + 80}^A0N,30,30^FDCargo: ${employee.position}^FS\n^FO${leftColumnX},${baseY + 120}^A0N,30,30^FDSetor: ${employee.sector}^FS\n^FO${leftColumnX},${baseY + 160}^A0N,30,30^FDData: ${employee.startDate ? dayjs(employee.startDate).format("DD/MM/YYYY") : "N/A"}^FS\n^FO${qrXPos},${qrY}^BQN,2,9,Q,7^FDQA,${employeeData}^FS\n^XZ`
   } else {
-    // Etiqueta para colaboradores externos (apenas nome, CPF e função destacada)
-    const nameLines = employee.name.split(' ').reduce((lines: string[], word) => {
-      const lastLine = lines[lines.length - 1] || ''
-      if ((lastLine + ' ' + word).length <= 35) {
-        lines[lines.length - 1] = lastLine ? lastLine + ' ' + word : word
-      } else {
-        lines.push(word)
-      }
-      return lines
-    }, [])
+    // Etiqueta para colaboradores externos (mantendo estrutura original)
+    const nameLines = breakTextIntoLines(employee.name, 35)
 
     const nameHeight = nameLines.length * 40
 
+    const otherFields = [employee.cpf, employee.role].filter(f => !!f).length + 1 // +1 for date
+    const otherFieldsHeight = otherFields * 40
+    const totalContentHeight = nameHeight + 10 + otherFieldsHeight
+    const topOffset = Math.max(8, Math.round((heightDots - totalContentHeight) / 2))
+
     const nameZpl = nameLines.map((line, index) =>
-      `^FO50,${30 + index * 40}^A0N,30,30^FD${line}^FS`
+      `^FO${leftColumnX},${topOffset + index * 40}^A0N,30,30^FD${line}^FS`
     ).join('\n')
 
-    const baseY = 30 + nameHeight + 20
+    const baseY = topOffset + nameHeight + 20
 
-    zpl = `^XA
-^CI28
-^PW799
-^LL500
-${nameZpl}
-^FO50,${baseY}^A0N,30,30^FDCPF: ${employee.cpf}^FS
-^FO50,${baseY + 60}^A0N,50,50^FD${employee.role || 'EXTERNO'}^FS
-^FO600,20^BQN,2,9,Q,7^FDQA,${employeeData}^FS
-^XZ`
+    const qrSizeMm = 36
+    const qrY = Math.round((heightDots - mmToDots(qrSizeMm)) / 2)
+    zpl = `^XA\n^CI28\n^PW${widthDots}\n^LL${heightDots}\n${nameZpl}\n^FO${leftColumnX},${baseY}^A0N,30,30^FDCPF: ${employee.cpf}^FS\n^FO${leftColumnX},${baseY + 60}^A0N,50,50^FD${employee.role || 'EXTERNO'}^FS\n^FO${qrXPos},${qrY}^BQN,2,9,Q,7^FDQA,${employeeData}^FS\n^XZ`
   }
 
   return zpl

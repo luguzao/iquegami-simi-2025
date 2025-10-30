@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { PaginationControls } from '@/components/dashboard/colaboradores/pagination-controls'
 
 type LogItem = {
@@ -19,7 +20,7 @@ export function AuditTable() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(15)
   const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   const fetchPage = async (p = page, pp = perPage) => {
     setLoading(true)
@@ -57,7 +58,29 @@ export function AuditTable() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td className="p-4" colSpan={6}>Carregando...</td></tr>
+              // show 6 skeleton rows matching the columns
+              Array.from({ length: 6 }).map((_, idx) => (
+                <tr key={`skeleton-${idx}`}>
+                  <td className="py-2 px-4 border-b">
+                    <Skeleton className="h-4 w-40" />
+                  </td>
+                  <td className="py-2 px-4 border-b">
+                    <Skeleton className="h-4 w-28" />
+                  </td>
+                  <td className="py-2 px-4 border-b">
+                    <Skeleton className="h-4 w-20" />
+                  </td>
+                  <td className="py-2 px-4 border-b">
+                    <Skeleton className="h-4 w-full" />
+                  </td>
+                  <td className="py-2 px-4 border-b">
+                    <Skeleton className="h-4 w-8" />
+                  </td>
+                  <td className="py-2 px-4 border-b">
+                    <Skeleton className="h-4 w-full" />
+                  </td>
+                </tr>
+              ))
             ) : items.length === 0 ? (
               <tr><td className="p-4" colSpan={6}>Sem registros</td></tr>
             ) : (

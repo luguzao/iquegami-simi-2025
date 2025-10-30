@@ -4,7 +4,8 @@ export async function GET(req: Request) {
   try {
     const supabase = createServerSupabase()
     const url = new URL(req.url)
-    const employeeId = String(url.searchParams.get('employeeId') || '')
+  const rawEmployeeId = url.searchParams.get('employeeId')
+  const employeeId = rawEmployeeId && rawEmployeeId !== 'null' ? String(rawEmployeeId) : ''
     const limit = Number(url.searchParams.get('limit') || '5')
 
     if (!employeeId) {

@@ -72,45 +72,14 @@ export default function AuditoriaPage() {
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <div className="flex flex-col gap-4 p-4 min-w-0">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Auditoria de QR Codes</h2>
+            <h3 className="text-lg font-medium mb-2">Histórico</h3>
             <div className="flex gap-2">
-              <Button onClick={() => setIsQROpen(true)}>Escanear QR</Button>
               <Button variant="outline" onClick={() => setManualOpen(true)}>Registrar manual</Button>
+              <Button onClick={() => setRefreshKey(k => k + 1)}>Atualizar</Button>
             </div>
           </div>
 
-          <QRCodeReader isOpen={isQROpen} onClose={() => setIsQROpen(false)} onScan={(r) => { setIsQROpen(false); handleScan(r) }} />
-
-          {scanResult && (
-            <div className="p-4 bg-gray-50 border rounded">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-muted">QR escaneado</div>
-                  <div className="font-medium break-all">{scanResult}</div>
-                </div>
-                <div>
-                  {previewInfo ? (
-                    previewInfo.found ? (
-                      <div className="text-right">
-                        <div className="text-sm">{previewInfo.employee.name}</div>
-                        <div className="text-xs text-muted">Próxima ação: <strong>{previewInfo.next}</strong></div>
-                        <div className="mt-2 flex gap-2 justify-end">
-                          <Button onClick={() => performAction(previewInfo.next)}>{previewInfo.next === 'checkin' ? 'Check-in' : 'Check-out'}</Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-sm text-destructive">{previewInfo.message}</div>
-                    )
-                  ) : (
-                    <div>Buscando informações...</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
           <div>
-            <h3 className="text-lg font-medium mb-2">Histórico</h3>
             <AuditTable key={refreshKey} />
           </div>
 
