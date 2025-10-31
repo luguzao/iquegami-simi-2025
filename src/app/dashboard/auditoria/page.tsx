@@ -6,6 +6,15 @@ import { AuditTable } from '@/components/dashboard/auditoria/audit-table'
 import { ManualRegisterDialog } from '@/components/dashboard/auditoria/manual-register-dialog'
 import { Button } from '@/components/ui/button'
 import { DashboardHeader } from '@/components/dashboard/dashboard-header'
+import { useToast } from '@/components/ui/toast-provider'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 export default function AuditoriaPage() {
   const breadcrumbs = [
@@ -17,6 +26,9 @@ export default function AuditoriaPage() {
   const [previewInfo, setPreviewInfo] = useState<any>(null)
   const [manualOpen, setManualOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [checkoutAllOpen, setCheckoutAllOpen] = useState(false)
+  const [isCheckingOutAll, setIsCheckingOutAll] = useState(false)
+  const { addToast } = useToast()
 
   const handleScan = async (result: string) => {
     setScanResult(result)
@@ -65,6 +77,26 @@ export default function AuditoriaPage() {
     }
   }
 
+  const handleCheckoutAll = async () => {
+    setIsCheckingOutAll(true)
+    try {
+      const res = await fetch('/api/auditoria/checkout-all', { method: 'POST' })
+      const json = await res.json()
+      if (json.error) {
+        addToast(json.error, 'error')
+      } else {
+        addToast(json.message, 'success')
+        setRefreshKey(k => k + 1)
+      }
+    } catch (err: any) {
+      console.error('handleCheckoutAll', err)
+      addToast('Erro ao realizar checkout em todos', 'error')
+    } finally {
+      setIsCheckingOutAll(false)
+      setCheckoutAllOpen(false)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardHeader breadcrumbs={breadcrumbs} />
@@ -75,6 +107,7 @@ export default function AuditoriaPage() {
             <h3 className="text-lg font-medium mb-2">Histórico</h3>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setManualOpen(true)}>Registrar manual</Button>
+              <Button onClick={() => setCheckoutAllOpen(true)}>Preparar para Evento</Button>
               <Button onClick={() => setRefreshKey(k => k + 1)}>Atualizar</Button>
             </div>
           </div>
@@ -84,6 +117,23 @@ export default function AuditoriaPage() {
           </div>
 
           <ManualRegisterDialog open={manualOpen} onOpenChange={setManualOpen} onRegistered={() => setRefreshKey(k => k + 1)} />
+
+          <Dialog open={checkoutAllOpen} onOpenChange={setCheckoutAllOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Checkout em todos os colaboradores</DialogTitle>
+                <DialogDescription>
+                  Isso realizará checkout em todos os colaboradores, preparando-os para um novo evento. Esta ação não pode ser desfeita.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex gap-2 justify-end pt-4">
+                <Button variant="outline" onClick={() => setCheckoutAllOpen(false)}>Cancelar</Button>
+                <Button onClick={handleCheckoutAll} disabled={isCheckingOutAll}>
+                  {isCheckingOutAll ? 'Processando...' : 'Confirmar'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </div>

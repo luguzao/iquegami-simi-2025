@@ -64,7 +64,7 @@ export function AuditTable() {
                 <th className="py-2 px-4 border-b whitespace-nowrap">CPF</th>
                 <th className="py-2 px-4 border-b whitespace-nowrap">Tipo</th>
                 <th className="py-2 px-4 border-b whitespace-nowrap">Manual</th>
-                <th className="py-2 px-4 border-b">Motivo</th>
+                <th className="py-2 px-4 border-b whitespace-nowrap">Motivo</th>
               </tr>
           </thead>
           <tbody>
@@ -98,13 +98,13 @@ export function AuditTable() {
               items.map(i => (
                 <tr key={i.id}>
                   <td className="py-2 px-4 border-b whitespace-nowrap">{new Date(i.created_at).toLocaleString('pt-BR')}</td>
-                  <td className="py-2 px-4 border-b">
-                    <div className="font-medium">{i.employee_name || i.employee_id || '-'}</div>
+                  <td className="py-2 px-4 border-b whitespace-nowrap">
+                    <div className="font-medium truncate max-w-[24ch]">{i.employee_name || i.employee_id || '-'}</div>
                   </td>
                   <td className="py-2 px-4 border-b whitespace-nowrap">{formatCpf(i.employee_cpf)}</td>
                   <td className="py-2 px-4 border-b whitespace-nowrap">{i.type}</td>
                   <td className="py-2 px-4 border-b whitespace-nowrap">{i.manual ? 'Sim' : 'Não'}</td>
-                  <td className="py-2 px-4 border-b">
+                  <td className="py-2 px-4 border-b whitespace-nowrap">
                     <div className="truncate max-w-[36ch]" title={i.note || ''}>{i.note || '-'}</div>
                   </td>
                 </tr>
@@ -133,13 +133,13 @@ export function AuditTable() {
           ) : items.length === 0 ? (
             <div className="p-4">Sem registros</div>
           ) : (
-            items.map(i => (
+              items.map(i => (
               <div key={i.id} className="p-3 border-b">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium">{new Date(i.created_at).toLocaleString('pt-BR')}</div>
-                    <div className="text-sm text-muted-foreground">{i.employee_name || '-'}</div>
-                    <div className="text-sm text-muted-foreground">CPF: <span className="font-medium">{formatCpf(i.employee_cpf)}</span></div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{new Date(i.created_at).toLocaleString('pt-BR')}</div>
+                    <div className="text-sm text-muted-foreground truncate">{i.employee_name || '-'}</div>
+                    <div className="text-sm text-muted-foreground truncate">CPF: <span className="font-medium">{formatCpf(i.employee_cpf)}</span></div>
                   </div>
                   <div className="text-right">
                     <div className={`inline-block px-2 py-1 rounded text-xs ${i.type === 'checkin' ? 'bg-green-100 text-green-800' : 'bg-sky-100 text-sky-800'}`}>{i.type}</div>
@@ -147,7 +147,7 @@ export function AuditTable() {
                   </div>
                 </div>
 
-                {i.note && <div className="mt-2 text-sm text-gray-600">Motivo: {i.note}</div>}
+                {i.note && <div className="mt-2 text-sm text-gray-600 truncate">Motivo: {i.note}</div>}
               </div>
             ))
           )}

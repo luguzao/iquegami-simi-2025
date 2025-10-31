@@ -42,18 +42,18 @@ export function EventTable({ events, onView, onEdit, onReports }: Props) {
       <table className="table-auto w-full">
         <thead>
           <tr>
-            <th className="p-2 text-left">Nome</th>
-            <th className="p-2 text-left">Período</th>
-            <th className="p-2 text-left">Local</th>
-            <th className="p-2 text-left">Ações</th>
+            <th className="p-2 text-left whitespace-nowrap">Nome</th>
+            <th className="p-2 text-left whitespace-nowrap">Período</th>
+            <th className="p-2 text-left whitespace-nowrap">Local</th>
+            <th className="p-2 text-left whitespace-nowrap">Ações</th>
           </tr>
         </thead>
         <tbody>
           {events.map(ev => (
             <tr key={ev.id} className="border-t">
-              <td className="p-2 truncate">{ev.name}</td>
-              <td className="p-2">{formatPeriod(ev.startDate, ev.endDate)}</td>
-              <td className="p-2">{ev.location || '-'}</td>
+              <td className="p-2 whitespace-nowrap truncate max-w-[28ch]">{ev.name}</td>
+              <td className="p-2 whitespace-nowrap truncate max-w-[36ch]">{formatPeriod(ev.startDate, ev.endDate)}</td>
+              <td className="p-2 whitespace-nowrap truncate max-w-[24ch]">{ev.location || '-'}</td>
               <td className="p-2">
                 <div className="flex gap-2">
                   <Button size="sm" variant="ghost" onClick={() => handleView(ev)}>Ver</Button>
