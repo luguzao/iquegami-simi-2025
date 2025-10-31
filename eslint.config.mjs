@@ -27,6 +27,7 @@ const eslintConfig = [
       "react-hooks/exhaustive-deps": "off",
       // Disable prop spreading restriction for easier component composition
       "react/jsx-props-no-spreading": "off",
+      "@typescript-eslint/no-require-imports": "off",
       // Allow development dependencies in certain files (like tests and configs)
       "import/no-extraneous-dependencies": [
         "error",
