@@ -8,10 +8,11 @@ type Body = {
   endDate?: string
 }
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, ctx: any) {
   try {
     const supabase = createServerSupabase()
-    const { id } = params
+    const { params } = ctx || {}
+    const { id } = params || {}
     const body: Body = await req.json()
 
     if (!id) {
