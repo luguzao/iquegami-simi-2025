@@ -44,10 +44,15 @@ const data = {
       icon: IconZoom,
     },
     {
-      title: "Relatórios",
-      url: "/dashboard/relatorios",
-      icon: IconReportAnalytics,
+      title: "Eventos",
+      url: "/dashboard/eventos",
+      icon: IconInnerShadowTop,
     },
+    // {
+    //   title: "Relatórios",
+    //   url: "/dashboard/relatorios",
+    //   icon: IconReportAnalytics,
+    // },
   ],
   navSecondary: [
     {
