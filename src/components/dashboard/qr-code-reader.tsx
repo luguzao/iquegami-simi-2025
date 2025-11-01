@@ -46,6 +46,8 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
   const startAttemptsRef = useRef(0)
   const MAX_START_RETRIES = 1
+  const [manualInput, setManualInput] = useState("")
+  const [showManualInput, setShowManualInput] = useState(false)
 
   const stopScanner = useCallback(() => {
     // Se está em processo de iniciar, cancelar a flag para evitar race
@@ -350,6 +352,8 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
     setError(null)
     setIsLoading(false)
     setHasPermission(null)
+    setManualInput("")
+    setShowManualInput(false)
     
     // Chamar callback de fechamento
     onClose()
@@ -359,6 +363,8 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
     setScannedData(null)
     setIsScanning(true)
     setError(null)
+    setManualInput("")
+    setShowManualInput(false)
     // O useEffect vai cuidar de iniciar o scanner
   }
 
@@ -506,6 +512,25 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
     }
   }
 
+  const handleManualSubmit = () => {
+    if (!manualInput.trim()) {
+      toast.error('Digite ou cole um código')
+      return
+    }
+    
+    // Parar o scanner se estiver ativo
+    stopScanner()
+    
+    // Processar como se fosse um scan
+    setScannedData({
+      content: manualInput.trim(),
+      scannedAt: new Date()
+    })
+    
+    setIsScanning(false)
+    onScan(manualInput.trim())
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-md">
@@ -522,19 +547,61 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
         </DialogHeader>
         {/* Seletor de câmera colocado acima do preview para não atrapalhar a visão */}
         {isOpen && isScanning && (
-          <div className="mb-3 flex items-center justify-end gap-2">
-            <label className="sr-only">Câmera</label>
-            <select
-              value={selectedDeviceId ?? ""}
-              onChange={(e) => setSelectedDeviceId(e.target.value || null)}
-              className="text-sm bg-white text-gray-900 px-2 py-1 rounded border"
-            >
-              <option value="">Selecionar câmera</option>
-              {cameras.map(cam => (
-                <option key={cam.id} value={cam.id}>{cam.label}</option>
-              ))}
-            </select>
-            <Button variant="outline" onClick={refreshCameras}>Atualizar</Button>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <Button 
+                variant={showManualInput ? "default" : "outline"}
+                onClick={() => {
+                  setShowManualInput(!showManualInput)
+                  if (!showManualInput) {
+                    stopScanner()
+                  }
+                }}
+                size="sm"
+              >
+                {showManualInput ? "Usar Câmera" : "Ler via coletor"}
+              </Button>
+              
+              {!showManualInput && (
+                <>
+                  <select
+                    value={selectedDeviceId ?? ""}
+                    onChange={(e) => setSelectedDeviceId(e.target.value || null)}
+                    className="text-sm bg-white text-gray-900 px-2 py-1 rounded border"
+                  >
+                    <option value="">Selecionar câmera</option>
+                    {cameras.map(cam => (
+                      <option key={cam.id} value={cam.id}>{cam.label}</option>
+                    ))}
+                  </select>
+                  <Button variant="outline" size="sm" onClick={refreshCameras}>Atualizar</Button>
+                </>
+              )}
+            </div>
+
+            {showManualInput && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Cole ou digite o código:</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={manualInput}
+                    onChange={(e) => setManualInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleManualSubmit()
+                      }
+                    }}
+                    placeholder="Cole ou digite aqui..."
+                    className="flex-1 px-3 py-2 border rounded-md text-sm"
+                    autoFocus
+                  />
+                  <Button onClick={handleManualSubmit} size="sm">
+                    Processar
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -604,32 +671,40 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
             </div>
           ) : isScanning ? (
             // Modo de scanner ativo
-            <div className="relative">
-              <video
-                ref={videoRef}
-                className="w-full h-64 bg-black rounded-lg object-cover"
-                playsInline
-                muted
-                autoPlay
-              />
-              
-              {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
-                  <div className="text-white text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
-                    <p>Iniciando câmera...</p>
+            showManualInput ? (
+              <div className="flex items-center justify-center h-64 bg-muted rounded-lg">
+                <p className="text-muted-foreground text-sm">
+                  Digite ou cole o código no campo acima
+                </p>
+              </div>
+            ) : (
+              <div className="relative">
+                <video
+                  ref={videoRef}
+                  className="w-full h-64 bg-black rounded-lg object-cover"
+                  playsInline
+                  muted
+                  autoPlay
+                />
+                
+                {isLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
+                    <div className="text-white text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
+                      <p>Iniciando câmera...</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {!isLoading && !error && (
-                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-                  <p className="text-white text-sm bg-black/70 px-2 py-1 rounded">
-                    Aponte para um QR Code
-                  </p>
-                </div>
-              )}
-            </div>
+                {!isLoading && !error && (
+                  <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+                    <p className="text-white text-sm bg-black/70 px-2 py-1 rounded">
+                      Aponte para um QR Code
+                    </p>
+                  </div>
+                )}
+              </div>
+            )
           ) : null}
         </div>
 
