@@ -56,15 +56,16 @@ export const generateEmployeeLabel = (employee: Employee): string => {
   const leftColumnX = marginLeft
 
   // Reusable helper to break long names into multiple lines
-  const breakTextIntoLines = (text: string, maxLength: number = 35): string[] => {
+  const breakTextIntoLines = (text: string, maxLength: number = 20): string[] => {
     if (!text) return []
     const words = text.split(' ')
     const lines: string[] = []
     let currentLine = ''
 
     for (const word of words) {
-      if ((currentLine + ' ' + word).trim().length <= maxLength) {
-        currentLine += (currentLine ? ' ' : '') + word
+      const testLine = currentLine ? `${currentLine} ${word}` : word
+      if (testLine.length <= maxLength) {
+        currentLine = testLine
       } else {
         if (currentLine) lines.push(currentLine)
         currentLine = word
@@ -78,46 +79,46 @@ export const generateEmployeeLabel = (employee: Employee): string => {
 
   if (employee.isInternal) {
     // Etiqueta para colaboradores internos (mantendo estrutura original)
-    const nameLines = breakTextIntoLines(employee.name, 35)
-    const nameHeight = nameLines.length * 40 // 40 pontos por linha (como antes)
+    const nameLines = breakTextIntoLines(employee.name, 20)
+    const nameHeight = nameLines.length * 45 // 45 pontos por linha (fonte maior)
 
     // estimate other fields count to compute vertical centering (removidos CPF, Data e Setor)
     const otherFields = [employee.store, employee.position].filter(f => !!f).length
-    const otherFieldsHeight = otherFields * 40
+    const otherFieldsHeight = otherFields * 45
     const totalContentHeight = nameHeight + 10 + otherFieldsHeight
     const topOffset = Math.max(8, Math.round((heightDots - totalContentHeight) / 2))
 
     // Gerar ZPL para as linhas do nome (vertically centered)
     const nameZpl = nameLines.map((line, index) =>
-      `^FO${leftColumnX},${topOffset + index * 40}^A0N,30,30^FD${index === 0 ? 'Nome: ' : ''}${line}^FS`
+      `^FO${leftColumnX},${topOffset + index * 45}^A0N,35,35^FD${line}^FS`
     ).join('\n')
 
     const baseY = topOffset + nameHeight + 10 // Espaço menor após o nome
 
     const qrSizeMm = 36
     const qrY = Math.round((heightDots - mmToDots(qrSizeMm)) / 2)
-    zpl = `^XA\n^CI28\n^PW${widthDots}\n^LL${heightDots}\n${nameZpl}\n^FO${leftColumnX},${baseY}^A0N,30,30^FDLoja: ${employee.store}^FS\n^FO${leftColumnX},${baseY + 40}^A0N,30,30^FDCargo: ${employee.position}^FS\n^FO${qrXPos},${qrY}^BQN,2,9,Q,7^FDQA,${employeeData}^FS\n^XZ`
+    zpl = `^XA\n^CI28\n^PW${widthDots}\n^LL${heightDots}\n${nameZpl}\n^FO${leftColumnX},${baseY}^A0N,35,35^FDLoja ${employee.store}^FS\n^FO${leftColumnX},${baseY + 45}^A0N,35,35^FD${employee.position}^FS\n^FO${qrXPos},${qrY}^BQN,2,9,Q,7^FDQA,${employeeData}^FS\n^XZ`
   } else {
     // Etiqueta para colaboradores externos (mantendo estrutura original)
-    const nameLines = breakTextIntoLines(employee.name, 35)
+    const nameLines = breakTextIntoLines(employee.name, 20)
 
-    const nameHeight = nameLines.length * 40
+    const nameHeight = nameLines.length * 45
 
     // Apenas a função/role é exibida (CPF removido)
     const otherFields = [employee.role].filter(f => !!f).length
-    const otherFieldsHeight = otherFields * 40
+    const otherFieldsHeight = otherFields * 45
     const totalContentHeight = nameHeight + 10 + otherFieldsHeight
     const topOffset = Math.max(8, Math.round((heightDots - totalContentHeight) / 2))
 
     const nameZpl = nameLines.map((line, index) =>
-      `^FO${leftColumnX},${topOffset + index * 40}^A0N,30,30^FD${line}^FS`
+      `^FO${leftColumnX},${topOffset + index * 45}^A0N,35,35^FD${line}^FS`
     ).join('\n')
 
     const baseY = topOffset + nameHeight + 20
 
     const qrSizeMm = 36
     const qrY = Math.round((heightDots - mmToDots(qrSizeMm)) / 2)
-    zpl = `^XA\n^CI28\n^PW${widthDots}\n^LL${heightDots}\n${nameZpl}\n^FO${leftColumnX},${baseY}^A0N,50,50^FD${employee.role || 'EXTERNO'}^FS\n^FO${qrXPos},${qrY}^BQN,2,9,Q,7^FDQA,${employeeData}^FS\n^XZ`
+    zpl = `^XA\n^CI28\n^PW${widthDots}\n^LL${heightDots}\n${nameZpl}\n^FO${leftColumnX},${baseY}^A0N,55,55^FD${employee.role || 'EXTERNO'}^FS\n^FO${qrXPos},${qrY}^BQN,2,9,Q,7^FDQA,${employeeData}^FS\n^XZ`
   }
 
   return zpl
