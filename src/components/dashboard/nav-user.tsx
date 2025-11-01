@@ -43,6 +43,26 @@ export function NavUser({
     router.refresh()
   }
 
+  // Gerar iniciais do avatar
+  const getInitials = () => {
+    if (user.name && user.name.trim()) {
+      const nameParts = user.name.trim().split(/\s+/)
+      if (nameParts.length >= 2) {
+        // Nome e sobrenome: primeira letra de cada
+        return (nameParts[0][0] + nameParts[1][0]).toUpperCase()
+      } else {
+        // Apenas um nome: duas primeiras letras
+        return user.name.trim().substring(0, 2).toUpperCase()
+      }
+    } else if (user.email && user.email.trim()) {
+      // Sem nome: duas primeiras letras do email
+      return user.email.trim().substring(0, 2).toUpperCase()
+    }
+    return 'IQ'
+  }
+
+  const initials = getInitials()
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -54,7 +74,7 @@ export function NavUser({
             >
               <Avatar className="h-8 w-8 rounded-lg grayscale">
                 <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg">IQ</AvatarFallback>
+                <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium text-primary">{user.name}</span>
@@ -75,7 +95,7 @@ export function NavUser({
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
                   <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="rounded-lg">IQ</AvatarFallback>
+                  <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium text-primary">{user.name}</span>
