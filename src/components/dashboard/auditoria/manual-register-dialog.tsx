@@ -82,7 +82,11 @@ export function ManualRegisterDialog({ open, onOpenChange, onRegistered }: { ope
         <div className="space-y-3">
           <div>
             <Label>Buscar colaborador</Label>
-            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Busque por nome ou CPF" />
+            <Input 
+              value={query} 
+              onChange={(e) => setQuery(e.target.value.toUpperCase())} 
+              placeholder="Busque por nome ou CPF" 
+            />
             {results.length > 0 && (
               <div className="border rounded mt-1 max-h-40 overflow-auto bg-white">
                 {results.map(r => (
@@ -106,13 +110,22 @@ export function ManualRegisterDialog({ open, onOpenChange, onRegistered }: { ope
 
             <div>
               <Label>Horário (opcional)</Label>
-              <Input type="datetime-local" value={timestamp} onChange={(e) => setTimestamp(e.target.value)} />
+              <Input 
+                type="datetime-local" 
+                value={timestamp} 
+                max="9999-12-31T23:59"
+                onChange={(e) => setTimestamp(e.target.value)} 
+              />
             </div>
           </div>
 
           <div>
             <Label>Motivo (opcional)</Label>
-            <textarea className="w-full border rounded p-2" value={reason} onChange={(e) => setReason(e.target.value)} />
+            <textarea 
+              className="w-full border rounded p-2" 
+              value={reason} 
+              onChange={(e) => setReason(e.target.value.toUpperCase())} 
+            />
           </div>
 
           {selected && (

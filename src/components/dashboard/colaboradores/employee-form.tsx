@@ -82,6 +82,10 @@ export function EmployeeForm({ isOpen, onOpenChange, employee, onSave }: Employe
   }
 
   const handleInputChange = (field: string, value: string | boolean) => {
+    // Se for string, converter para caixa alta
+    if (typeof value === 'string') {
+      value = value.toUpperCase()
+    }
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
@@ -157,6 +161,7 @@ export function EmployeeForm({ isOpen, onOpenChange, employee, onSave }: Employe
               id="startDate"
               type="date"
               value={formData.startDate}
+              max="9999-12-31"
               onChange={(e) => handleInputChange("startDate", e.target.value)}
               required={formData.isInternal}
             />

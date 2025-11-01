@@ -101,13 +101,13 @@ export function LoginForm({
                 />
               </Field>
               <Field>
-                <Button type="submit" disabled={loading}>
+                <Button type="submit" className="bg-iquegami hover:bg-iquegami/90" disabled={loading}>
                   {loading ? "Entrando..." : "Entrar"}
                 </Button>
               </Field>
             </FieldGroup>
           </form>
-          <div className=" relative hidden md:block bg-red-600 p-5">
+          <div className=" relative hidden md:block bg-iquegami p-5">
             <Image
               src={Art}
               alt="Art"

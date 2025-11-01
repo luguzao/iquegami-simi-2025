@@ -92,17 +92,17 @@ export function EventForm({ event, onCreated, onUpdated, onClose }: Props) {
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div>
         <Label>Nome</Label>
-        <Input value={name} onChange={(e) => setName(e.target.value)} required />
+        <Input value={name} onChange={(e) => setName(e.target.value.toUpperCase())} required />
       </div>
 
       <div>
         <Label>Descrição</Label>
-        <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+        <Input value={description} onChange={(e) => setDescription(e.target.value.toUpperCase())} />
       </div>
 
       <div>
         <Label>Local</Label>
-        <Input value={location} onChange={(e) => setLocation(e.target.value)} />
+        <Input value={location} onChange={(e) => setLocation(e.target.value.toUpperCase())} />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -111,6 +111,7 @@ export function EventForm({ event, onCreated, onUpdated, onClose }: Props) {
           <Input
             type="datetime-local"
             value={startDate}
+            max="9999-12-31T23:59"
             onChange={(e) => setStartDate(e.target.value)}
           />
         </div>
@@ -119,6 +120,7 @@ export function EventForm({ event, onCreated, onUpdated, onClose }: Props) {
           <Input
             type="datetime-local"
             value={endDate}
+            max="9999-12-31T23:59"
             onChange={(e) => setEndDate(e.target.value)}
           />
         </div>

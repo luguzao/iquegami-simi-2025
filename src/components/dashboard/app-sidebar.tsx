@@ -60,11 +60,11 @@ const data = {
       url: "/dashboard/usuarios",
       icon: IconUserScreen,
     },
-    {
-      title: "Configurações",
-      url: "/dashboard/configuracoes",
-      icon: IconSettings,
-    },
+    // {
+    //   title: "Configurações",
+    //   url: "/dashboard/configuracoes",
+    //   icon: IconSettings,
+    // },
   ],
 }
 

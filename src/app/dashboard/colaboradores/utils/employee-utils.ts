@@ -204,13 +204,13 @@ export const importEmployeesFromCSV = (file: File, onSuccess: (employees: Employ
       }
 
       const cpf = parts[0]?.trim() || ""
-      const name = parts[1]?.trim() || ""
-  const store = parts[2]?.trim() || undefined
-  const position = parts[3]?.trim() || undefined
-  const sector = parts[4]?.trim() || undefined
+      const name = parts[1]?.trim().toUpperCase() || ""
+  const store = parts[2]?.trim().toUpperCase() || undefined
+  const position = parts[3]?.trim().toUpperCase() || undefined
+  const sector = parts[4]?.trim().toUpperCase() || undefined
   const startDateRaw = parts[5]?.trim() || undefined
       const isInternalStr = parts[6]?.trim() || ""
-      const role = parts[7]?.trim() || undefined
+      const role = parts[7]?.trim().toUpperCase() || undefined
 
   // Normalizar a data para formato ISO
   const startDate = startDateRaw ? normalizeDate(startDateRaw) : undefined
@@ -346,13 +346,13 @@ export const importEmployeesFromCSVAsync = (file: File): Promise<Omit<Employee, 
           while (parts.length < 8) parts.push("")
 
           const cpf = unformatCpf(parts[0]?.trim() || "")
-          const name = parts[1]?.trim() || ""
-          const store = parts[2]?.trim() || undefined
-          const position = parts[3]?.trim() || undefined
-          const sector = parts[4]?.trim() || undefined
+          const name = parts[1]?.trim().toUpperCase() || ""
+          const store = parts[2]?.trim().toUpperCase() || undefined
+          const position = parts[3]?.trim().toUpperCase() || undefined
+          const sector = parts[4]?.trim().toUpperCase() || undefined
           const startDateRaw = parts[5]?.trim() || undefined
           const isInternalStr = parts[6]?.trim() || ""
-          const role = parts[7]?.trim() || undefined
+          const role = parts[7]?.trim().toUpperCase() || undefined
 
           const startDate = startDateRaw ? normalizeDate(startDateRaw) : undefined
 
