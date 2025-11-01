@@ -81,8 +81,8 @@ export const generateEmployeeLabel = (employee: Employee): string => {
     const nameLines = breakTextIntoLines(employee.name, 35)
     const nameHeight = nameLines.length * 40 // 40 pontos por linha (como antes)
 
-    // estimate other fields count to compute vertical centering (removidos CPF, Data e Setor)
-    const otherFields = [employee.store, employee.position].filter(f => !!f).length
+    // estimate other fields count to compute vertical centering
+    const otherFields = [employee.cpf, employee.store, employee.position, employee.sector].filter(f => !!f).length + 1 // +1 for date
     const otherFieldsHeight = otherFields * 40
     const totalContentHeight = nameHeight + 10 + otherFieldsHeight
     const topOffset = Math.max(8, Math.round((heightDots - totalContentHeight) / 2))
@@ -96,15 +96,14 @@ export const generateEmployeeLabel = (employee: Employee): string => {
 
     const qrSizeMm = 36
     const qrY = Math.round((heightDots - mmToDots(qrSizeMm)) / 2)
-    zpl = `^XA\n^CI28\n^PW${widthDots}\n^LL${heightDots}\n${nameZpl}\n^FO${leftColumnX},${baseY}^A0N,30,30^FDLoja: ${employee.store}^FS\n^FO${leftColumnX},${baseY + 40}^A0N,30,30^FDCargo: ${employee.position}^FS\n^FO${qrXPos},${qrY}^BQN,2,9,Q,7^FDQA,${employeeData}^FS\n^XZ`
+    zpl = `^XA\n^CI28\n^PW${widthDots}\n^LL${heightDots}\n${nameZpl}\n^FO${leftColumnX},${baseY}^A0N,30,30^FDCPF: ${employee.cpf}^FS\n^FO${leftColumnX},${baseY + 40}^A0N,30,30^FDLoja: ${employee.store}^FS\n^FO${leftColumnX},${baseY + 80}^A0N,30,30^FDCargo: ${employee.position}^FS\n^FO${leftColumnX},${baseY + 120}^A0N,30,30^FDSetor: ${employee.sector}^FS\n^FO${leftColumnX},${baseY + 160}^A0N,30,30^FDData: ${employee.startDate ? dayjs(employee.startDate).format("DD/MM/YYYY") : "N/A"}^FS\n^FO${qrXPos},${qrY}^BQN,2,9,Q,7^FDQA,${employeeData}^FS\n^XZ`
   } else {
     // Etiqueta para colaboradores externos (mantendo estrutura original)
     const nameLines = breakTextIntoLines(employee.name, 35)
 
     const nameHeight = nameLines.length * 40
 
-    // Apenas a função/role é exibida (CPF removido)
-    const otherFields = [employee.role].filter(f => !!f).length
+    const otherFields = [employee.cpf, employee.role].filter(f => !!f).length + 1 // +1 for date
     const otherFieldsHeight = otherFields * 40
     const totalContentHeight = nameHeight + 10 + otherFieldsHeight
     const topOffset = Math.max(8, Math.round((heightDots - totalContentHeight) / 2))
@@ -117,7 +116,7 @@ export const generateEmployeeLabel = (employee: Employee): string => {
 
     const qrSizeMm = 36
     const qrY = Math.round((heightDots - mmToDots(qrSizeMm)) / 2)
-    zpl = `^XA\n^CI28\n^PW${widthDots}\n^LL${heightDots}\n${nameZpl}\n^FO${leftColumnX},${baseY}^A0N,50,50^FD${employee.role || 'EXTERNO'}^FS\n^FO${qrXPos},${qrY}^BQN,2,9,Q,7^FDQA,${employeeData}^FS\n^XZ`
+    zpl = `^XA\n^CI28\n^PW${widthDots}\n^LL${heightDots}\n${nameZpl}\n^FO${leftColumnX},${baseY}^A0N,30,30^FDCPF: ${employee.cpf}^FS\n^FO${leftColumnX},${baseY + 60}^A0N,50,50^FD${employee.role || 'EXTERNO'}^FS\n^FO${qrXPos},${qrY}^BQN,2,9,Q,7^FDQA,${employeeData}^FS\n^XZ`
   }
 
   return zpl
