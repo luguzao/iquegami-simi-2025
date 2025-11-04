@@ -33,21 +33,31 @@ export async function GET(req: Request) {
     const employeeIds = Array.from(new Set(logs.map((l: any) => l.employee_id).filter(Boolean)))
     let employeesMap: Record<string, any> = {}
     if (employeeIds.length > 0) {
-      const { data: emps } = await supabase
+      const { data: emps, error: empError } = await supabase
         .from('employees')
-        .select('id,name,cpf')
+        .select('id,name,cpf,store,role,isInternal')
         .in('id', employeeIds)
+
+      if (empError) {
+        console.error('Error fetching employees:', empError)
+      }
 
       if (emps) {
         employeesMap = emps.reduce((acc: any, e: any) => ({ ...acc, [e.id]: e }), {})
       }
     }
 
-    const items = logs.map((d: any) => ({
-      ...d,
-      employee_name: employeesMap[d.employee_id]?.name ?? null,
-      employee_cpf: employeesMap[d.employee_id]?.cpf ?? null,
-    }))
+    const items = logs.map((d: any) => {
+      const emp = employeesMap[d.employee_id]
+      return {
+        ...d,
+        employee_name: emp?.name ?? null,
+        employee_cpf: emp?.cpf ?? null,
+        employee_store: emp?.store ?? null,
+        employee_role: emp?.role ?? null,
+        employee_isInternal: emp?.isInternal ?? null,
+      }
+    })
 
     return new Response(JSON.stringify({ items, total: count ?? 0, page, perPage }), {
       headers: { 'Content-Type': 'application/json' },

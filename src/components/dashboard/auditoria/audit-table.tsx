@@ -11,6 +11,9 @@ type LogItem = {
   qr_content?: string | null
   employee_name?: string | null
   employee_cpf?: string | null
+  employee_store?: string | null
+  employee_role?: string | null
+  employee_isInternal?: boolean | null
   type: 'checkin' | 'checkout'
   created_at: string
   note?: string | null
@@ -22,6 +25,24 @@ const formatCpf = (raw?: string | null) => {
   const digits = String(raw).replace(/\D/g, '')
   if (digits.length !== 11) return raw
   return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+}
+
+const formatEmployeeDisplay = (item: LogItem) => {
+  const name = item.employee_name
+  const isInternal = item.employee_isInternal
+  
+  // Se não encontrou o colaborador, mostra mensagem
+  if (!name) {
+    return '[Colaborador não encontrado]'
+  }
+  
+  if (isInternal && item.employee_store) {
+    return `${name} - ${item.employee_store}`
+  } else if (!isInternal && item.employee_role) {
+    return `${name} - ${item.employee_role}`
+  }
+  
+  return name
 }
 
 export function AuditTable() {
@@ -99,7 +120,7 @@ export function AuditTable() {
                 <tr key={i.id}>
                   <td className="py-2 px-4 border-b whitespace-nowrap">{new Date(i.created_at).toLocaleString('pt-BR')}</td>
                   <td className="py-2 px-4 border-b whitespace-nowrap">
-                    <div className="font-medium truncate max-w-[24ch]">{i.employee_name || i.employee_id || '-'}</div>
+                    <div className="font-medium truncate max-w-[24ch]">{formatEmployeeDisplay(i)}</div>
                   </td>
                   <td className="py-2 px-4 border-b whitespace-nowrap">{formatCpf(i.employee_cpf)}</td>
                   <td className="py-2 px-4 border-b whitespace-nowrap">{i.type}</td>
@@ -138,7 +159,7 @@ export function AuditTable() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate">{new Date(i.created_at).toLocaleString('pt-BR')}</div>
-                    <div className="text-sm text-muted-foreground truncate">{i.employee_name || '-'}</div>
+                    <div className="text-sm text-muted-foreground truncate">{formatEmployeeDisplay(i)}</div>
                     <div className="text-sm text-muted-foreground truncate">CPF: <span className="font-medium">{formatCpf(i.employee_cpf)}</span></div>
                   </div>
                   <div className="text-right">

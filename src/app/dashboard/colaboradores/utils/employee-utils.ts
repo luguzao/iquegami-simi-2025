@@ -52,7 +52,7 @@ export const generateEmployeeLabel = (employee: Employee): string => {
   const qrColumnStart = widthDots - mmToDots(36) // QR column approx
   const qrXPos = Math.max((qrColumnStart - 40), 420)
   // keep text closer to the left edge
-  const marginLeft = 20
+  const marginLeft = 40
   const leftColumnX = marginLeft
 
   // Reusable helper to break long names into multiple lines
@@ -86,7 +86,7 @@ export const generateEmployeeLabel = (employee: Employee): string => {
     const otherFields = [employee.store, employee.position].filter(f => !!f).length
     const otherFieldsHeight = otherFields * 45
     const totalContentHeight = nameHeight + 10 + otherFieldsHeight
-    const topOffset = Math.max(8, Math.round((heightDots - totalContentHeight) / 2))
+    const topOffset = Math.max(20, Math.round((heightDots - totalContentHeight) / 2) - 50)
 
     // Gerar ZPL para as linhas do nome (vertically centered)
     const nameZpl = nameLines.map((line, index) =>
@@ -108,7 +108,7 @@ export const generateEmployeeLabel = (employee: Employee): string => {
     const otherFields = [employee.role].filter(f => !!f).length
     const otherFieldsHeight = otherFields * 45
     const totalContentHeight = nameHeight + 10 + otherFieldsHeight
-    const topOffset = Math.max(8, Math.round((heightDots - totalContentHeight) / 2))
+    const topOffset = Math.max(20, Math.round((heightDots - totalContentHeight) / 2) - 50)
 
     const nameZpl = nameLines.map((line, index) =>
       `^FO${leftColumnX},${topOffset + index * 45}^A0N,35,35^FD${line}^FS`

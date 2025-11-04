@@ -107,6 +107,11 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
   }, [])
 
   const startScanner = useCallback(async () => {
+    // Se estiver no modo de input manual, não iniciar o scanner
+    if (showManualInput) {
+      return
+    }
+
     // Evitar chamadas concorrentes que causam play() interrompido
     if (isStartingRef.current || qrScannerRef.current) {
       return
@@ -254,7 +259,7 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
       isStartingRef.current = false
       setIsLoading(false)
     }
-  }, [hasPermission, requestCameraPermission, selectedDeviceId])
+  }, [hasPermission, requestCameraPermission, selectedDeviceId, showManualInput])
 
   // Efeito para iniciar/parar scanner quando modal abre/fecha
   useEffect(() => {
@@ -288,14 +293,14 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
 
   // Efeito para iniciar scanner quando isScanning muda para true
   useEffect(() => {
-    if (isOpen && isScanning && !scannedData) {
+    if (isOpen && isScanning && !scannedData && !showManualInput) {
       const timer = setTimeout(() => {
         startScanner()
       }, 100)
       
       return () => clearTimeout(timer)
     }
-  }, [isOpen, isScanning, scannedData, startScanner])
+  }, [isOpen, isScanning, scannedData, showManualInput, startScanner])
 
   // Efeito para limpar highlights quando não está escaneando
   useEffect(() => {
@@ -478,6 +483,7 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
   const performAttendance = async (type?: 'checkin' | 'checkout') => {
     if (!scannedData) return
     setIsPerforming(true)
+    const wasManualInput = showManualInput
     try {
       const payload: any = { qrContent: scannedData.content }
       if (employeeInfo && employeeInfo.id) payload.employeeId = employeeInfo.id
@@ -498,12 +504,28 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
       const item = json.item || json
       if (item) setLastAttendance(item)
 
-      // show success toast and close the modal
+      // show success toast
       toast.success('Ponto registrado com sucesso')
-      // small delay so user sees the toast before modal closes
-      setTimeout(() => {
-        handleClose()
-      }, 300)
+      
+      // Voltar ao estado inicial ao invés de fechar
+      setScannedData(null)
+      setEmployeeInfo(null)
+      setLastAttendance(null)
+      setManualInput("")
+      setIsScanning(true)
+      
+      // Se foi manual, manter no modo manual e focar o input
+      if (wasManualInput) {
+        setShowManualInput(true)
+        // Pequeno delay para garantir que o input seja renderizado antes de focar
+        setTimeout(() => {
+          const input = document.querySelector('input[placeholder="Cole ou digite aqui..."]') as HTMLInputElement
+          if (input) input.focus()
+        }, 100)
+      } else {
+        // Se foi por câmera, voltar para câmera
+        setShowManualInput(false)
+      }
     } catch (err: any) {
   console.error('Erro ao perform attendance', err)
   try { toast.error('Erro ao registrar ponto: ' + (err.message || String(err))) } catch (e) { /* ignore */ }

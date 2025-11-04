@@ -28,6 +28,8 @@ export default function AuditoriaPage() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [checkoutAllOpen, setCheckoutAllOpen] = useState(false)
   const [isCheckingOutAll, setIsCheckingOutAll] = useState(false)
+  const [cleanOrphansOpen, setCleanOrphansOpen] = useState(false)
+  const [isCleaningOrphans, setIsCleaningOrphans] = useState(false)
   const { addToast } = useToast()
 
   const handleScan = async (result: string) => {
@@ -97,6 +99,26 @@ export default function AuditoriaPage() {
     }
   }
 
+  const handleCleanOrphans = async () => {
+    setIsCleaningOrphans(true)
+    try {
+      const res = await fetch('/api/auditoria/clean-orphans', { method: 'POST' })
+      const json = await res.json()
+      if (json.error) {
+        addToast(json.error, 'error')
+      } else {
+        addToast(json.message, 'success')
+        setRefreshKey(k => k + 1)
+      }
+    } catch (err: any) {
+      console.error('handleCleanOrphans', err)
+      addToast('Erro ao limpar registros órfãos', 'error')
+    } finally {
+      setIsCleaningOrphans(false)
+      setCleanOrphansOpen(false)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardHeader breadcrumbs={breadcrumbs} />
@@ -107,6 +129,7 @@ export default function AuditoriaPage() {
             <h3 className="text-lg font-medium mb-2">Histórico</h3>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setManualOpen(true)}>Registrar manual</Button>
+              <Button variant="outline" onClick={() => setCleanOrphansOpen(true)}>Limpar Registros Órfãos</Button>
               <Button onClick={() => setCheckoutAllOpen(true)}>Preparar para Evento</Button>
               <Button onClick={() => setRefreshKey(k => k + 1)}>Atualizar</Button>
             </div>
@@ -130,6 +153,23 @@ export default function AuditoriaPage() {
                 <Button variant="outline" onClick={() => setCheckoutAllOpen(false)}>Cancelar</Button>
                 <Button onClick={handleCheckoutAll} disabled={isCheckingOutAll}>
                   {isCheckingOutAll ? 'Processando...' : 'Confirmar'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={cleanOrphansOpen} onOpenChange={setCleanOrphansOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Limpar Registros Órfãos</DialogTitle>
+                <DialogDescription>
+                  Isso removerá todos os registros de auditoria que referenciam colaboradores que não existem mais no sistema. Esta ação não pode ser desfeita.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex gap-2 justify-end pt-4">
+                <Button variant="outline" onClick={() => setCleanOrphansOpen(false)}>Cancelar</Button>
+                <Button onClick={handleCleanOrphans} disabled={isCleaningOrphans} variant="destructive">
+                  {isCleaningOrphans ? 'Processando...' : 'Confirmar'}
                 </Button>
               </div>
             </DialogContent>
