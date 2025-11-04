@@ -119,6 +119,33 @@ export default function AuditoriaPage() {
     }
   }
 
+  const handleExport = async () => {
+    try {
+      const res = await fetch('/api/auditoria/export')
+      if (!res.ok) {
+        const json = await res.json()
+        addToast(json.error || 'Erro ao exportar dados', 'error')
+        return
+      }
+      
+      // Baixar o arquivo CSV
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `auditoria-${new Date().toISOString().split('T')[0]}.csv`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
+      addToast('Dados exportados com sucesso', 'success')
+    } catch (err: any) {
+      console.error('handleExport', err)
+      addToast('Erro ao exportar dados', 'error')
+    }
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardHeader breadcrumbs={breadcrumbs} />
@@ -128,6 +155,7 @@ export default function AuditoriaPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium mb-2">Histórico</h3>
             <div className="flex gap-2">
+              <Button variant="outline" onClick={handleExport}>Exportar Dados</Button>
               <Button variant="outline" onClick={() => setManualOpen(true)}>Registrar manual</Button>
               <Button variant="outline" onClick={() => setCleanOrphansOpen(true)}>Limpar Registros Órfãos</Button>
               <Button onClick={() => setCheckoutAllOpen(true)}>Preparar para Evento</Button>
