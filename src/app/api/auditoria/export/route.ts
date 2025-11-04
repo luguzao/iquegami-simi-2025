@@ -56,9 +56,10 @@ export async function GET(req: Request) {
     
     const csvRows = items.map((item: any) => {
       // Formatar data sem vírgula para evitar problemas no CSV
+      // Usar timezone do Brasil (America/Sao_Paulo)
       const date = new Date(item.created_at)
-      const dateStr = date.toLocaleDateString('pt-BR')
-      const timeStr = date.toLocaleTimeString('pt-BR')
+      const dateStr = date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+      const timeStr = date.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })
       const dateTime = `${dateStr} ${timeStr}`
       
       const name = item.employee_name || '[Colaborador não encontrado]'
