@@ -180,7 +180,7 @@ export function EmployeeForm({ isOpen, onOpenChange, employee, onSave }: Employe
 
           {!formData.isInternal && (
             <div>
-              <Label htmlFor="role">Função</Label>
+              <Label htmlFor="role">Função/Empresa</Label>
               <Input
                 id="role"
                 placeholder="Ex: STAFF, Segurança, etc."

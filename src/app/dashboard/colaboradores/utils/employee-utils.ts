@@ -162,7 +162,7 @@ export const downloadAllEmployeeLabels = async (employees: Employee[]): Promise<
  */
 export const exportEmployeesToCSV = (employees: Employee[]): void => {
   const csv = [
-    ["CPF", "Nome", "Loja", "Cargo", "Setor", "Data de Início", "Interno", "Função"],
+    ["CPF", "Nome", "Loja", "Cargo", "Setor", "Data de Início", "Interno", "Função - Empresa"],
     ...employees.map(emp => [emp.cpf, emp.name, emp.store, emp.position, emp.sector, emp.startDate || "", emp.isInternal.toString(), emp.role || ""])
   ].map(row => row.join(",")).join("\n")
   const blob = new Blob([csv], { type: "text/csv" })
@@ -178,7 +178,7 @@ export const exportEmployeesToCSV = (employees: Employee[]): void => {
  */
 export const downloadEmployeeTemplate = (): void => {
   const csv = [
-    ["CPF", "Nome", "Loja", "Cargo", "Setor", "Data de Início", "Interno", "Função"],
+    ["CPF", "Nome", "Loja", "Cargo", "Setor", "Data de Início", "Interno", "Função - Empresa"],
     ["123.456.789-00", "João Silva", "Loja A", "Vendedor", "Vendas", "2023-01-15", "true", ""],
     ["987.654.321-00", "Maria Santos", "Loja B", "", "", "15/01/2023", "false", "STAFF"]
   ].map(row => row.join(",")).join("\n")
