@@ -47,7 +47,6 @@ export function LoginForm({
       } else {
         toast.success("Login realizado com sucesso!");
 
-        // Redirecionar imediatamente - o middleware vai cuidar do resto
         router.push('/dashboard');
         router.refresh(); // Força a atualização do middleware
       }
