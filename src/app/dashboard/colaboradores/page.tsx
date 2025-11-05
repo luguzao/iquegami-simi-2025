@@ -26,7 +26,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Copy } from "lucide-react"
-import { createEmployeeAction, updateEmployeeAction, deleteEmployeeAction, fetchEmployeesAction } from "./actions"
+import { createEmployeeAction, updateEmployeeAction, deleteEmployeeAction, fetchEmployeesAction, bulkCreateEmployeesAction } from "./actions"
 import { toast } from "sonner"
 
 export default function DashboardPage() {
@@ -292,22 +292,20 @@ export default function DashboardPage() {
 
         const toImport = parsed.filter(p => !skippedSet.has(unformatCpf(p.cpf)))
 
-        const created: any[] = []
-        for (const emp of toImport) {
-          // createEmployeeAction is a server action
-          const toCreate: Omit<Employee, 'id'> = {
-            cpf: unformatCpf(emp.cpf),
-            name: emp.name,
-            store: emp.store,
-            position: emp.position,
-            sector: emp.sector,
-            startDate: emp.startDate,
-            isInternal: emp.isInternal,
-            role: emp.role
-          }
-          const res = await createEmployeeAction(toCreate)
-          created.push(res)
-        }
+        // Preparar todos os colaboradores para bulk insert
+        const toCreate: Omit<Employee, 'id'>[] = toImport.map(emp => ({
+          cpf: unformatCpf(emp.cpf),
+          name: emp.name,
+          store: emp.store,
+          position: emp.position,
+          sector: emp.sector,
+          startDate: emp.startDate,
+          isInternal: emp.isInternal,
+          role: emp.role
+        }))
+
+        // Bulk insert - uma única chamada ao banco de dados
+        const created = await bulkCreateEmployeesAction(toCreate)
 
         // Update local state with created records
         setEmployees(prev => [...prev, ...created])
