@@ -89,10 +89,13 @@ export async function deleteEmployeeAction(id: string) {
 }
 
 export async function fetchEmployeesAction(): Promise<Employee[]> {
+  // Buscar todos os colaboradores sem limite
+  // Por padrão, Supabase limita a 1000 registros, então precisamos ajustar
   const { data, error } = await supabase
     .from('employees')
     .select('*')
     .order('name', { ascending: true })
+    .limit(100000) // Aumentar o limite para garantir que pegue todos
 
   if (error) {
     console.error('fetchEmployeesAction error', error)
