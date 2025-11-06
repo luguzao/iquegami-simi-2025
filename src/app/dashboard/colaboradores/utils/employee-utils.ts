@@ -80,12 +80,14 @@ export const generateEmployeeLabel = (employee: Employee): string => {
   if (employee.isInternal) {
     // Etiqueta para colaboradores internos (mantendo estrutura original)
     const nameLines = breakTextIntoLines(employee.name, 20)
+    const storeLines = employee.store ? breakTextIntoLines(`Loja ${employee.store}`, 20) : []
+    const positionLines = employee.position ? breakTextIntoLines(employee.position, 20) : []
+    
     const nameHeight = nameLines.length * 45 // 45 pontos por linha (fonte maior)
+    const storeHeight = storeLines.length * 45
+    const positionHeight = positionLines.length * 45
 
-    // estimate other fields count to compute vertical centering (removidos CPF, Data e Setor)
-    const otherFields = [employee.store, employee.position].filter(f => !!f).length
-    const otherFieldsHeight = otherFields * 45
-    const totalContentHeight = nameHeight + 10 + otherFieldsHeight
+    const totalContentHeight = nameHeight + 10 + storeHeight + positionHeight
     const topOffset = Math.max(20, Math.round((heightDots - totalContentHeight) / 2) - 50)
 
     // Gerar ZPL para as linhas do nome (vertically centered)
@@ -93,32 +95,51 @@ export const generateEmployeeLabel = (employee: Employee): string => {
       `^FO${leftColumnX},${topOffset + index * 45}^A0N,35,35^FD${line}^FS`
     ).join('\n')
 
-    const baseY = topOffset + nameHeight + 10 // Espaço menor após o nome
+    let currentY = topOffset + nameHeight + 10 // Espaço menor após o nome
+
+    // Gerar ZPL para loja (com múltiplas linhas se necessário)
+    const storeZpl = storeLines.map((line, index) => {
+      const zpl = `^FO${leftColumnX},${currentY + index * 45}^A0N,35,35^FD${line}^FS`
+      return zpl
+    }).join('\n')
+    
+    currentY += storeHeight
+
+    // Gerar ZPL para cargo (com múltiplas linhas se necessário)
+    const positionZpl = positionLines.map((line, index) => {
+      const zpl = `^FO${leftColumnX},${currentY + index * 45}^A0N,35,35^FD${line}^FS`
+      return zpl
+    }).join('\n')
 
     const qrSizeMm = 36
     const qrY = Math.round((heightDots - mmToDots(qrSizeMm)) / 2)
-    zpl = `^XA\n^CI28\n^PW${widthDots}\n^LL${heightDots}\n${nameZpl}\n^FO${leftColumnX},${baseY}^A0N,35,35^FDLoja ${employee.store}^FS\n^FO${leftColumnX},${baseY + 45}^A0N,35,35^FD${employee.position}^FS\n^FO${qrXPos},${qrY}^BQN,2,9,Q,7^FDQA,${employeeData}^FS\n^XZ`
+    zpl = `^XA\n^CI28\n^PW${widthDots}\n^LL${heightDots}\n${nameZpl}\n${storeZpl}\n${positionZpl}\n^FO${qrXPos},${qrY}^BQN,2,9,Q,7^FDQA,${employeeData}^FS\n^XZ`
   } else {
     // Etiqueta para colaboradores externos (mantendo estrutura original)
     const nameLines = breakTextIntoLines(employee.name, 20)
+    const roleLines = employee.role ? breakTextIntoLines(employee.role, 20) : []
 
     const nameHeight = nameLines.length * 45
+    const roleHeight = roleLines.length * 55 // Fonte maior para função (55)
 
-    // Apenas a função/role é exibida (CPF removido)
-    const otherFields = [employee.role].filter(f => !!f).length
-    const otherFieldsHeight = otherFields * 45
-    const totalContentHeight = nameHeight + 10 + otherFieldsHeight
+    const totalContentHeight = nameHeight + 20 + roleHeight
     const topOffset = Math.max(20, Math.round((heightDots - totalContentHeight) / 2) - 50)
 
     const nameZpl = nameLines.map((line, index) =>
       `^FO${leftColumnX},${topOffset + index * 45}^A0N,35,35^FD${line}^FS`
     ).join('\n')
 
-    const baseY = topOffset + nameHeight + 20
+    const roleY = topOffset + nameHeight + 20
+
+    // Gerar ZPL para função (com múltiplas linhas se necessário, fonte maior)
+    const roleZpl = roleLines.map((line, index) => {
+      const zpl = `^FO${leftColumnX},${roleY + index * 55}^A0N,55,55^FD${line}^FS`
+      return zpl
+    }).join('\n')
 
     const qrSizeMm = 36
     const qrY = Math.round((heightDots - mmToDots(qrSizeMm)) / 2)
-    zpl = `^XA\n^CI28\n^PW${widthDots}\n^LL${heightDots}\n${nameZpl}\n^FO${leftColumnX},${baseY}^A0N,55,55^FD${employee.role || 'EXTERNO'}^FS\n^FO${qrXPos},${qrY}^BQN,2,9,Q,7^FDQA,${employeeData}^FS\n^XZ`
+    zpl = `^XA\n^CI28\n^PW${widthDots}\n^LL${heightDots}\n${nameZpl}\n${roleZpl}\n^FO${qrXPos},${qrY}^BQN,2,9,Q,7^FDQA,${employeeData}^FS\n^XZ`
   }
 
   return zpl
