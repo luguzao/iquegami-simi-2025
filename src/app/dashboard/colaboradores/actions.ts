@@ -89,20 +89,36 @@ export async function deleteEmployeeAction(id: string) {
 }
 
 export async function fetchEmployeesAction(): Promise<Employee[]> {
-  // Buscar todos os colaboradores sem limite
-  // Por padrão, Supabase limita a 1000 registros, então precisamos ajustar
-  const { data, error } = await supabase
-    .from('employees')
-    .select('*')
-    .order('name', { ascending: true })
-    .limit(100000) // Aumentar o limite para garantir que pegue todos
+  // Buscar todos os colaboradores paginando para contornar o limite de 1000 do Supabase
+  const pageSize = 1000
+  let allEmployees: Employee[] = []
+  let page = 0
+  let hasMore = true
 
-  if (error) {
-    console.error('fetchEmployeesAction error', error)
-    throw new Error(error?.message || JSON.stringify(error))
+  while (hasMore) {
+    const from = page * pageSize
+    const to = from + pageSize - 1
+
+    const { data, error } = await supabase
+      .from('employees')
+      .select('*')
+      .order('name', { ascending: true })
+      .range(from, to)
+
+    if (error) {
+      console.error('fetchEmployeesAction error', error)
+      throw new Error(error?.message || JSON.stringify(error))
+    }
+
+    const pageData = (data ?? []) as Employee[]
+    allEmployees = allEmployees.concat(pageData)
+
+    // Se retornou menos que o pageSize, não há mais páginas
+    hasMore = pageData.length === pageSize
+    page++
   }
 
-  return (data ?? []) as Employee[]
+  return allEmployees
 }
 
 export async function bulkCreateEmployeesAction(employees: Omit<Employee, 'id'>[]): Promise<Employee[]> {
@@ -123,10 +139,13 @@ export async function bulkCreateEmployeesAction(employees: Omit<Employee, 'id'>[
     }
   }
 
-  // Bulk insert - Supabase insere tudo de uma vez
+  // Upsert - Insere novos ou atualiza existentes (baseado no CPF que é unique)
   const { data, error } = await supabase
     .from('employees')
-    .insert(employees)
+    .upsert(employees, { 
+      onConflict: 'cpf',  // Usar CPF como chave de conflito
+      ignoreDuplicates: false  // Atualizar se já existir
+    })
     .select()
 
   if (error) {
@@ -135,10 +154,6 @@ export async function bulkCreateEmployeesAction(employees: Omit<Employee, 'id'>[
       try {
         const em = String(error?.message || '')
         const code = String(error?.code || '')
-        if (code === '23505' || /duplicate key value violates unique constraint/i.test(em)) {
-          if (/employees_cpf_key/i.test(em)) return 'Um ou mais CPFs já estão cadastrados.'
-          return 'Já existem registros duplicados.'
-        }
         if (/permission denied/i.test(em)) return 'Permissão negada ao acessar o banco de dados.'
         return em || JSON.stringify(error)
       } catch (e) {
@@ -149,6 +164,62 @@ export async function bulkCreateEmployeesAction(employees: Omit<Employee, 'id'>[
   }
 
   return (data ?? []) as Employee[]
+}
+
+// Nova action com estatísticas detalhadas
+export async function bulkUpsertEmployeesWithStatsAction(
+  employees: Omit<Employee, 'id'>[]
+): Promise<{ added: number; updated: number; errors: number; total: number }> {
+  if (employees.length === 0) {
+    return { added: 0, updated: 0, errors: 0, total: 0 }
+  }
+
+  // Server-side validation
+  for (const payload of employees) {
+    if (payload.isInternal) {
+      if (!payload.store || !payload.position || !payload.sector || !payload.startDate) {
+        throw new Error(`Colaborador ${payload.name}: Para colaboradores internos, Loja, Cargo, Setor e Data de Início são obrigatórios`)
+      }
+    } else {
+      if (!payload.role) {
+        throw new Error(`Colaborador ${payload.name}: Para colaboradores externos, a função (role) é obrigatória`)
+      }
+    }
+  }
+
+  // Buscar CPFs existentes antes do upsert para calcular estatísticas
+  const cpfsToCheck = employees.map(e => e.cpf)
+  const { data: existingEmployees } = await supabase
+    .from('employees')
+    .select('cpf')
+    .in('cpf', cpfsToCheck)
+
+  const existingCpfsSet = new Set((existingEmployees || []).map((e: any) => e.cpf))
+
+  // Contar quantos serão adicionados vs atualizados
+  const willBeUpdated = employees.filter(e => existingCpfsSet.has(e.cpf)).length
+  const willBeAdded = employees.length - willBeUpdated
+
+  // Fazer um único upsert de todos os registros
+  const { data, error } = await supabase
+    .from('employees')
+    .upsert(employees, {
+      onConflict: 'cpf',
+      ignoreDuplicates: false
+    })
+    .select()
+
+  if (error) {
+    console.error('Erro no bulk upsert:', error)
+    throw new Error(`Erro ao importar colaboradores: ${error.message}`)
+  }
+
+  return {
+    added: willBeAdded,
+    updated: willBeUpdated,
+    errors: 0,
+    total: employees.length
+  }
 }
 
 // Nova action para buscar colaboradores com paginação no servidor

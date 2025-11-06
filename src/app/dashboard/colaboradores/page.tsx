@@ -26,7 +26,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Copy } from "lucide-react"
-import { createEmployeeAction, updateEmployeeAction, deleteEmployeeAction, fetchEmployeesAction, bulkCreateEmployeesAction, fetchEmployeesPaginatedAction, countEmployeesAction } from "./actions"
+import { createEmployeeAction, updateEmployeeAction, deleteEmployeeAction, fetchEmployeesAction, bulkCreateEmployeesAction, bulkUpsertEmployeesWithStatsAction, fetchEmployeesPaginatedAction, countEmployeesAction } from "./actions"
 import { toast } from "sonner"
 
 export default function DashboardPage() {
@@ -269,30 +269,8 @@ export default function DashboardPage() {
           throw new Error('Nenhum registro válido encontrado no arquivo')
         }
 
-        // Fetch existing employees to check duplicate CPF
-        const existing = await fetchEmployeesAction()
-        const existingCpfs = new Set(existing.map(e => unformatCpf(e.cpf)))
-
-        // Check duplicates within file
-        const freq: Record<string, number> = {}
-        for (const p of parsed) {
-          const c = unformatCpf(p.cpf)
-          freq[c] = (freq[c] || 0) + 1
-        }
-        const duplicatesInFile = Object.keys(freq).filter(k => freq[k] > 1)
-
-        // Check duplicates against DB
-        const duplicatesInDb = parsed.map(p => unformatCpf(p.cpf)).filter(c => existingCpfs.has(c))
-
-        // Combine duplicates (in-file and in-db) and skip them during import
-        const skippedSet = new Set<string>()
-        duplicatesInFile.forEach(d => skippedSet.add(d))
-        duplicatesInDb.forEach(d => skippedSet.add(d))
-
-        const toImport = parsed.filter(p => !skippedSet.has(unformatCpf(p.cpf)))
-
-        // Preparar todos os colaboradores para bulk insert
-        const toCreate: Omit<Employee, 'id'>[] = toImport.map(emp => ({
+        // Preparar todos os colaboradores para bulk upsert
+        const toCreate: Omit<Employee, 'id'>[] = parsed.map(emp => ({
           cpf: unformatCpf(emp.cpf),
           name: emp.name,
           store: emp.store,
@@ -303,33 +281,36 @@ export default function DashboardPage() {
           role: emp.role
         }))
 
-        // Bulk insert - uma única chamada ao banco de dados
-        const created = await bulkCreateEmployeesAction(toCreate)
+        // Bulk upsert - retorna estatísticas detalhadas
+        const stats = await bulkUpsertEmployeesWithStatsAction(toCreate)
 
         // Recarregar a lista para incluir os novos
         await loadEmployees()
         
-        return { createdCount: created.length, skipped: Array.from(skippedSet) }
+        return stats
     })()
 
     let toastId: any = undefined
     try {
       toastId = toast.loading('Importando dados...')
-      const res = await importPromise
-      // res is { createdCount, skipped }
-      toast.success(`Importação concluída: ${res.createdCount} colaboradores criados.`, { id: toastId })
+      const stats = await importPromise
+      
+      // Mostrar estatísticas detalhadas
+      const messages = []
+      if (stats.added > 0) messages.push(`${stats.added} adicionados`)
+      if (stats.updated > 0) messages.push(`${stats.updated} atualizados`)
+      if (stats.errors > 0) messages.push(`${stats.errors} com erro`)
+      
+      const summaryMessage = messages.length > 0 
+        ? `Importação concluída: ${messages.join(', ')}`
+        : 'Importação concluída'
+      
+      toast.success(summaryMessage, { id: toastId })
 
-      if (res.skipped && res.skipped.length > 0) {
-        setDuplicateCpfs(res.skipped)
-        setIsDuplicateDialogOpen(true)
-        // show a separate short toast informing about skipped items
-        toast(`Foram pulados ${res.skipped.length} CPFs duplicados. Verifique o relatório.`, {
-          duration: 6000,
-          action: {
-            label: 'Ver duplicados',
-            // Re-open the duplicates dialog when clicked
-            onClick: () => setIsDuplicateDialogOpen(true)
-          }
+      // Se houver erros, mostrar aviso adicional
+      if (stats.errors > 0) {
+        toast.warning(`${stats.errors} colaboradores não puderam ser importados. Verifique os dados e tente novamente.`, {
+          duration: 6000
         })
       }
     } catch (err: any) {
