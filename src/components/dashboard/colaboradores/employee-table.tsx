@@ -18,21 +18,22 @@ interface EmployeeTableProps {
 
 export function EmployeeTable({ employees, loading = false, onGenerateLabel, onEdit, onDelete }: EmployeeTableProps) {
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full bg-white border">
-        <thead>
-          <tr>
-            <th className="py-2 px-4 border-b whitespace-nowrap">CPF</th>
-            <th className="py-2 px-4 border-b whitespace-nowrap">Nome</th>
-            <th className="py-2 px-4 border-b whitespace-nowrap">Loja</th>
-            <th className="py-2 px-4 border-b whitespace-nowrap">Cargo</th>
-            <th className="py-2 px-4 border-b whitespace-nowrap">Setor</th>
-            <th className="py-2 px-4 border-b whitespace-nowrap">Data de Início</th>
-            <th className="py-2 px-4 border-b whitespace-nowrap">Tipo</th>
-            <th className="py-2 px-4 border-b whitespace-nowrap">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
+    <div className="border rounded-lg bg-white overflow-hidden">
+      <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-420px)]">
+        <table className="min-w-full">
+          <thead className="bg-gray-50 sticky top-0 z-10">
+            <tr>
+              <th className="py-2 px-4 border-b whitespace-nowrap text-left font-medium text-gray-700">CPF</th>
+              <th className="py-2 px-4 border-b whitespace-nowrap text-left font-medium text-gray-700">Nome</th>
+              <th className="py-2 px-4 border-b whitespace-nowrap text-left font-medium text-gray-700">Loja</th>
+              <th className="py-2 px-4 border-b whitespace-nowrap text-left font-medium text-gray-700">Cargo</th>
+              <th className="py-2 px-4 border-b whitespace-nowrap text-left font-medium text-gray-700">Setor</th>
+              <th className="py-2 px-4 border-b whitespace-nowrap text-left font-medium text-gray-700">Data de Início</th>
+              <th className="py-2 px-4 border-b whitespace-nowrap text-left font-medium text-gray-700">Tipo</th>
+              <th className="py-2 px-4 border-b whitespace-nowrap text-left font-medium text-gray-700">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
           {loading ? (
             // show 6 skeleton rows while loading
             Array.from({ length: 6 }).map((_, i) => (
@@ -49,7 +50,7 @@ export function EmployeeTable({ employees, loading = false, onGenerateLabel, onE
             ))
           ) : (
             employees.map((emp) => (
-              <tr key={emp.id}>
+              <tr key={emp.id} className="hover:bg-gray-50 transition-colors cursor-pointer">
                 <td className="py-2 px-4 border-b whitespace-nowrap">{formatCpf(emp.cpf)}</td>
                 <td className="py-2 px-4 border-b whitespace-nowrap">{emp.name}</td>
                 <td className="py-2 px-4 border-b whitespace-nowrap">{emp.store}</td>
@@ -109,7 +110,8 @@ export function EmployeeTable({ employees, loading = false, onGenerateLabel, onE
             ))
           )}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   )
 }
