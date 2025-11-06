@@ -120,7 +120,7 @@ export async function bulkCreateEmployeesAction(employees: Omit<Employee, 'id'>[
     }
   }
 
-  // Bulk insert - Supabase insere todos de uma vez
+  // Bulk insert - Supabase insere tudo de uma vez
   const { data, error } = await supabase
     .from('employees')
     .insert(employees)
