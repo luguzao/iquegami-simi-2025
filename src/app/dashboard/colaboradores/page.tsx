@@ -26,7 +26,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Copy } from "lucide-react"
-import { createEmployeeAction, updateEmployeeAction, deleteEmployeeAction, fetchEmployeesAction, bulkCreateEmployeesAction } from "./actions"
+import { createEmployeeAction, updateEmployeeAction, deleteEmployeeAction, fetchEmployeesAction, bulkCreateEmployeesAction, fetchEmployeesPaginatedAction, countEmployeesAction } from "./actions"
 import { toast } from "sonner"
 
 export default function DashboardPage() {
@@ -36,36 +36,16 @@ export default function DashboardPage() {
   ]
 
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [totalCount, setTotalCount] = useState(0) // Contador total real do banco
   // Iniciar como true para mostrar o skeleton imediatamente na primeira render
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Buscar colaboradores do Supabase ao montar
-  // useEffect executa no cliente
-  useEffect(() => {
-    let mounted = true
-    const load = async () => {
-      setLoading(true)
-      try {
-        // Use server action to fetch employees (more reliable)
-        const data = await fetchEmployeesAction()
-        if (mounted) setEmployees(data)
-      } catch (err: any) {
-        console.error(err)
-        setError(err?.message || 'Erro ao carregar colaboradores')
-        toast.error(err?.message || 'Erro ao carregar colaboradores')
-      } finally {
-        if (mounted) setLoading(false)
-      }
-    }
+  // Estados para paginação
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(15)
 
-    load()
-    return () => { mounted = false }
-  }, [])
-
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [newEmployee, setNewEmployee] = useState<Partial<Employee>>({})
-  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
+  // Estados para filtros
   const [cpfFilter, setCpfFilter] = useState("")
   const [nameFilter, setNameFilter] = useState("")
   const [storeFilter, setStoreFilter] = useState("")
@@ -80,10 +60,35 @@ export default function DashboardPage() {
     sector: "",
     type: ""
   })
-  
-  // Estados para paginação
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(15)
+
+  // Buscar colaboradores paginados do servidor
+  const loadEmployees = async () => {
+    setLoading(true)
+    try {
+      const result = await fetchEmployeesPaginatedAction({
+        page: currentPage,
+        perPage: itemsPerPage,
+        filters: appliedFilters
+      })
+      setEmployees(result.employees)
+      setTotalCount(result.total)
+    } catch (err: any) {
+      console.error(err)
+      setError(err?.message || 'Erro ao carregar colaboradores')
+      toast.error(err?.message || 'Erro ao carregar colaboradores')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Recarregar quando mudar página, itens por página ou filtros
+  useEffect(() => {
+    loadEmployees()
+  }, [currentPage, itemsPerPage, appliedFilters])
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [newEmployee, setNewEmployee] = useState<Partial<Employee>>({})
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
 
   // Estados para popups de confirmação
   const [isDownloadAllDialogOpen, setIsDownloadAllDialogOpen] = useState(false)
@@ -91,24 +96,11 @@ export default function DashboardPage() {
   const [duplicateCpfs, setDuplicateCpfs] = useState<string[]>([])
   const [isDuplicateDialogOpen, setIsDuplicateDialogOpen] = useState(false)
 
-  const filteredEmployees = employees.filter(emp =>
-    (appliedFilters.cpf === "" || emp.cpf.includes(appliedFilters.cpf)) &&
-    (appliedFilters.name === "" || emp.name.toLowerCase().includes(appliedFilters.name.toLowerCase())) &&
-    (appliedFilters.store === "" || (emp.store ? emp.store.toLowerCase().includes(appliedFilters.store.toLowerCase()) : false)) &&
-    (appliedFilters.position === "" || (emp.position ? emp.position.toLowerCase().includes(appliedFilters.position.toLowerCase()) : false)) &&
-    (appliedFilters.sector === "" || (emp.sector ? emp.sector.toLowerCase().includes(appliedFilters.sector.toLowerCase()) : false)) &&
-    (appliedFilters.type === "" || 
-     (appliedFilters.type === "interno" && emp.isInternal) || 
-     (appliedFilters.type === "externo" && !emp.isInternal) ||
-     (appliedFilters.type !== "interno" && appliedFilters.type !== "externo" && 
-      (emp.role?.toLowerCase().includes(appliedFilters.type.toLowerCase()) || false)))
-  )
-
-  // Calcular colaboradores paginados
-  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage)
+  // Agora os colaboradores já vêm filtrados e paginados do servidor
+  // Calcular índices para o display
+  const totalPages = Math.ceil(totalCount / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const paginatedEmployees = filteredEmployees.slice(startIndex, endIndex)
+  const endIndex = Math.min(startIndex + employees.length, totalCount)
     // Accept payload from EmployeeForm so the form's local state isn't ignored
     const handleAddEmployee = async (payload?: Omit<Employee, 'id'>) => {
       // Prefer the payload passed by the form; fall back to local newEmployee state
@@ -125,6 +117,7 @@ export default function DashboardPage() {
               ...editingEmployee,
               ...candidate
             } as Partial<Employee>)
+            // Atualizar na lista local
             setEmployees(employees.map(emp => emp.id === updated.id ? updated : emp))
             toast.success('Colaborador atualizado com sucesso!')
           } else {
@@ -140,7 +133,8 @@ export default function DashboardPage() {
               role: candidate.role
             }
             const created = await createEmployeeAction(toCreate)
-            setEmployees(prev => [...prev, created])
+            // Recarregar a lista para incluir o novo
+            await loadEmployees()
             toast.success('Colaborador criado com sucesso!')
           }
 
@@ -184,7 +178,8 @@ export default function DashboardPage() {
     if (deleteEmployeeId) {
       try {
         await deleteEmployeeAction(deleteEmployeeId)
-        setEmployees(prev => prev.filter(emp => emp.id !== deleteEmployeeId))
+        // Recarregar a lista
+        await loadEmployees()
         toast.success('Colaborador excluído com sucesso!')
       } catch (err) {
         console.error('Erro ao confirmar exclusão:', err)
@@ -235,8 +230,10 @@ export default function DashboardPage() {
     setCurrentPage(1) // Reset para primeira página quando remover filtros
   }
 
-  const handleExport = () => {
-    exportEmployeesToCSV(employees)
+  const handleExport = async () => {
+    // Buscar todos os colaboradores para exportação
+    const allEmployees = await fetchEmployeesAction()
+    exportEmployeesToCSV(allEmployees)
   }
 
   const handleDownloadTemplate = () => {
@@ -244,7 +241,9 @@ export default function DashboardPage() {
   }
 
   const handleDownloadAllLabels = async () => {
-    await downloadAllEmployeeLabels(employees)
+    // Buscar todos os colaboradores para gerar etiquetas
+    const allEmployees = await fetchEmployeesAction()
+    await downloadAllEmployeeLabels(allEmployees)
   }
 
   // Funções de paginação
@@ -307,8 +306,9 @@ export default function DashboardPage() {
         // Bulk insert - uma única chamada ao banco de dados
         const created = await bulkCreateEmployeesAction(toCreate)
 
-        // Update local state with created records
-        setEmployees(prev => [...prev, ...created])
+        // Recarregar a lista para incluir os novos
+        await loadEmployees()
+        
         return { createdCount: created.length, skipped: Array.from(skippedSet) }
     })()
 
@@ -378,7 +378,7 @@ export default function DashboardPage() {
           />
           
           <EmployeeTable
-            employees={paginatedEmployees}
+            employees={employees}
             loading={loading}
             onGenerateLabel={handleGenerateLabel}
             onEdit={handleEdit}
@@ -389,7 +389,7 @@ export default function DashboardPage() {
             currentPage={currentPage}
             totalPages={totalPages}
             itemsPerPage={itemsPerPage}
-            totalItems={filteredEmployees.length}
+            totalItems={totalCount}
             startIndex={startIndex}
             endIndex={endIndex}
             onPageChange={handlePageChange}
@@ -413,7 +413,7 @@ export default function DashboardPage() {
             isOpen={isDownloadAllDialogOpen}
             onOpenChange={setIsDownloadAllDialogOpen}
             title="Confirmar Download"
-            description={`Você está prestes a baixar etiquetas ZPL para todos os ${employees.length} colaboradores do sistema. Este arquivo ZIP pode ser grande dependendo da quantidade de colaboradores. Deseja continuar?`}
+            description={`Você está prestes a baixar etiquetas ZPL para todos os ${totalCount} colaboradores do sistema. Este arquivo ZIP pode ser grande dependendo da quantidade de colaboradores. Deseja continuar?`}
             confirmText="Baixar Todas as Etiquetas"
             onConfirm={handleConfirmDownloadAll}
           />

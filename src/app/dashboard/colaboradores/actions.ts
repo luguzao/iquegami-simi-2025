@@ -150,3 +150,81 @@ export async function bulkCreateEmployeesAction(employees: Omit<Employee, 'id'>[
 
   return (data ?? []) as Employee[]
 }
+
+// Nova action para buscar colaboradores com paginação no servidor
+export async function fetchEmployeesPaginatedAction(params: {
+  page: number
+  perPage: number
+  filters?: {
+    cpf?: string
+    name?: string
+    store?: string
+    position?: string
+    sector?: string
+    type?: string
+  }
+}): Promise<{ employees: Employee[], total: number }> {
+  const { page, perPage, filters = {} } = params
+  const from = (page - 1) * perPage
+  const to = from + perPage - 1
+
+  // Construir query base
+  let query = supabase
+    .from('employees')
+    .select('*', { count: 'exact' })
+
+  // Aplicar filtros
+  if (filters.cpf) {
+    query = query.ilike('cpf', `%${filters.cpf}%`)
+  }
+  if (filters.name) {
+    query = query.ilike('name', `%${filters.name}%`)
+  }
+  if (filters.store) {
+    query = query.ilike('store', `%${filters.store}%`)
+  }
+  if (filters.position) {
+    query = query.ilike('position', `%${filters.position}%`)
+  }
+  if (filters.sector) {
+    query = query.ilike('sector', `%${filters.sector}%`)
+  }
+  if (filters.type) {
+    if (filters.type === 'interno') {
+      query = query.eq('isInternal', true)
+    } else if (filters.type === 'externo') {
+      query = query.eq('isInternal', false)
+    } else {
+      query = query.ilike('role', `%${filters.type}%`)
+    }
+  }
+
+  // Ordenar e paginar
+  const { data, error, count } = await query
+    .order('name', { ascending: true })
+    .range(from, to)
+
+  if (error) {
+    console.error('fetchEmployeesPaginatedAction error', error)
+    throw new Error(error?.message || JSON.stringify(error))
+  }
+
+  return {
+    employees: (data ?? []) as Employee[],
+    total: count ?? 0
+  }
+}
+
+// Action para contar total de colaboradores
+export async function countEmployeesAction(): Promise<number> {
+  const { count, error } = await supabase
+    .from('employees')
+    .select('*', { count: 'exact', head: true })
+
+  if (error) {
+    console.error('countEmployeesAction error', error)
+    throw new Error(error?.message || JSON.stringify(error))
+  }
+
+  return count ?? 0
+}
