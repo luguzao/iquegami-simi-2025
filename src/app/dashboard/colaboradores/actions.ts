@@ -252,7 +252,7 @@ export async function fetchEmployeesPaginatedAction(params: {
     query = query.ilike('name', `%${filters.name}%`)
   }
   if (filters.store) {
-    query = query.ilike('store', `%${filters.store}%`)
+    query = query.eq('store', `${filters.store}`)
   }
   if (filters.position) {
     query = query.ilike('position', `%${filters.position}%`)
