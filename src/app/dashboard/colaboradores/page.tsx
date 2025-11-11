@@ -26,7 +26,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Copy } from "lucide-react"
-import { createEmployeeAction, updateEmployeeAction, deleteEmployeeAction, fetchEmployeesAction, bulkCreateEmployeesAction, bulkUpsertEmployeesWithStatsAction, fetchEmployeesPaginatedAction, countEmployeesAction } from "./actions"
+import { createEmployeeAction, updateEmployeeAction, deleteEmployeeAction, fetchEmployeesAction, bulkCreateEmployeesAction, bulkUpsertEmployeesWithStatsAction, fetchEmployeesPaginatedAction, countEmployeesAction, fetchEmployeesWithFiltersAction } from "./actions"
 import { toast } from "sonner"
 
 export default function DashboardPage() {
@@ -231,9 +231,20 @@ export default function DashboardPage() {
   }
 
   const handleExport = async () => {
-    // Buscar todos os colaboradores para exportação
-    const allEmployees = await fetchEmployeesAction()
-    exportEmployeesToCSV(allEmployees)
+    // Verificar se há filtros ativos
+    const hasActiveFilters = Object.values(appliedFilters).some(filter => filter.trim() !== "")
+
+    let employeesToExport: Employee[]
+
+    if (hasActiveFilters) {
+      // Buscar colaboradores com filtros aplicados
+      employeesToExport = await fetchEmployeesWithFiltersAction(appliedFilters)
+    } else {
+      // Buscar todos os colaboradores
+      employeesToExport = await fetchEmployeesAction()
+    }
+
+    exportEmployeesToCSV(employeesToExport)
   }
 
   const handleDownloadTemplate = () => {
@@ -241,9 +252,20 @@ export default function DashboardPage() {
   }
 
   const handleDownloadAllLabels = async () => {
-    // Buscar todos os colaboradores para gerar etiquetas
-    const allEmployees = await fetchEmployeesAction()
-    await downloadAllEmployeeLabels(allEmployees)
+    // Verificar se há filtros ativos
+    const hasActiveFilters = Object.values(appliedFilters).some(filter => filter.trim() !== "")
+
+    let employeesToDownload: Employee[]
+
+    if (hasActiveFilters) {
+      // Buscar colaboradores com filtros aplicados
+      employeesToDownload = await fetchEmployeesWithFiltersAction(appliedFilters)
+    } else {
+      // Buscar todos os colaboradores
+      employeesToDownload = await fetchEmployeesAction()
+    }
+
+    await downloadAllEmployeeLabels(employeesToDownload)
   }
 
   // Funções de paginação
@@ -339,6 +361,7 @@ export default function DashboardPage() {
             onDownloadTemplate={handleDownloadTemplate}
             onImport={handleImport}
             onDownloadAllLabels={handleDownloadAllLabelsClick}
+            hasActiveFilters={Object.values(appliedFilters).some(filter => filter.trim() !== "")}
           />
           
           <EmployeeFilters

@@ -299,3 +299,72 @@ export async function countEmployeesAction(): Promise<number> {
 
   return count ?? 0
 }
+
+// Buscar todos os colaboradores com filtros aplicados (para exportação)
+export async function fetchEmployeesWithFiltersAction(filters: {
+  cpf: string
+  name: string
+  store: string
+  position: string
+  sector: string
+  type: string
+}): Promise<Employee[]> {
+  // Buscar todos os colaboradores com filtros aplicados, paginando para contornar o limite de 1000 do Supabase
+  const pageSize = 1000
+  let allEmployees: Employee[] = []
+  let page = 0
+  let hasMore = true
+
+  while (hasMore) {
+    const from = page * pageSize
+    const to = from + pageSize - 1
+
+    let query = supabase
+      .from('employees')
+      .select('*')
+
+    // Aplicar filtros
+    if (filters.cpf) {
+      query = query.ilike('cpf', `%${filters.cpf}%`)
+    }
+    if (filters.name) {
+      query = query.ilike('name', `%${filters.name}%`)
+    }
+    if (filters.store) {
+      query = query.eq('store', `${filters.store}`)
+    }
+    if (filters.position) {
+      query = query.ilike('position', `%${filters.position}%`)
+    }
+    if (filters.sector) {
+      query = query.ilike('sector', `%${filters.sector}%`)
+    }
+    if (filters.type) {
+      if (filters.type === 'interno') {
+        query = query.eq('isInternal', true)
+      } else if (filters.type === 'externo') {
+        query = query.eq('isInternal', false)
+      } else {
+        query = query.ilike('role', `%${filters.type}%`)
+      }
+    }
+
+    const { data, error } = await query
+      .order('name', { ascending: true })
+      .range(from, to)
+
+    if (error) {
+      console.error('fetchEmployeesWithFiltersAction error', error)
+      throw new Error(error?.message || JSON.stringify(error))
+    }
+
+    const pageData = (data ?? []) as Employee[]
+    allEmployees = allEmployees.concat(pageData)
+
+    // Se retornou menos que o pageSize, não há mais páginas
+    hasMore = pageData.length === pageSize
+    page++
+  }
+
+  return allEmployees
+}

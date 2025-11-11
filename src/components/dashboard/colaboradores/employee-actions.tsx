@@ -8,6 +8,7 @@ interface EmployeeActionsProps {
   onDownloadTemplate: () => void
   onImport: (event: React.ChangeEvent<HTMLInputElement>) => void
   onDownloadAllLabels: () => void
+  hasActiveFilters?: boolean
 }
 
 export function EmployeeActions({
@@ -15,7 +16,8 @@ export function EmployeeActions({
   onExport,
   onDownloadTemplate,
   onImport,
-  onDownloadAllLabels
+  onDownloadAllLabels,
+  hasActiveFilters = false
 }: EmployeeActionsProps) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -23,7 +25,7 @@ export function EmployeeActions({
         Cadastrar Colaborador
       </Button>
       <Button onClick={onExport} className="flex-1 sm:flex-none">
-        Exportar
+        {hasActiveFilters ? "Exportar Filtrados" : "Exportar"}
       </Button>
       <Button onClick={onDownloadTemplate} className="flex-1 sm:flex-none">
         Baixar Modelo
@@ -39,7 +41,7 @@ export function EmployeeActions({
         <label htmlFor="import-file">Importar</label>
       </Button>
       <Button onClick={onDownloadAllLabels} variant="outline" className="flex-1 sm:flex-none">
-        Baixar Todas Etiquetas
+        {hasActiveFilters ? "Baixar Etiquetas Filtradas" : "Baixar Todas Etiquetas"}
       </Button>
     </div>
   )
