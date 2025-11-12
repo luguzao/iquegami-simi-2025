@@ -161,6 +161,22 @@ export const downloadEmployeeLabel = (employee: Employee): void => {
 /**
  * Baixa todas as etiquetas ZPL em um arquivo ZIP
  */
+// export const downloadAllEmployeeLabels = async (employees: Employee[]): Promise<void> => {
+//   const zip = new JSZip()
+
+//   employees.forEach(employee => {
+//     const zpl = generateEmployeeLabel(employee)
+//     const fileName = `etiqueta_${employee.name.replace(/\s+/g, "_")}.zpl`
+//     zip.file(fileName, zpl)
+//   })
+
+//   const zipBlob = await zip.generateAsync({ type: "blob" })
+//   const url = URL.createObjectURL(zipBlob)
+//   const a = document.createElement("a")
+//   a.href = url
+//   a.download = "todas_etiquetas.zip"
+//   a.click()
+// }
 export const downloadAllEmployeeLabels = async (employees: Employee[]): Promise<void> => {
   const zip = new JSZip()
 
@@ -175,7 +191,14 @@ export const downloadAllEmployeeLabels = async (employees: Employee[]): Promise<
   const a = document.createElement("a")
   a.href = url
   a.download = "todas_etiquetas.zip"
+  document.body.appendChild(a) // Adiciona ao DOM
   a.click()
+  
+  // Libera recursos após um pequeno delay para garantir que o download iniciou
+  setTimeout(() => {
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }, 100)
 }
 
 /**
