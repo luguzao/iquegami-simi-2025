@@ -97,8 +97,11 @@ export async function GET(req: Request) {
 
     const csv = csvHeader + csvRows
 
+    // Adicionar BOM para compatibilidade com Excel no Windows
+    const csvWithBom = '\ufeff' + csv
+
     // Retornar CSV com headers apropriados
-    return new Response(csv, {
+    return new Response(csvWithBom, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': `attachment; filename="auditoria-${new Date().toISOString().split('T')[0]}.csv"`,
