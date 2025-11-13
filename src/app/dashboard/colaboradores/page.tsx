@@ -284,8 +284,11 @@ export default function DashboardPage() {
 
   // Use toast.promise to show pending -> success/error
   const importPromise = (async () => {
+        console.log('Starting import process for file:', file.name)
+
         // Parse CSV into employee payloads
         const parsed = await importEmployeesFromCSVAsync(file)
+        console.log('Parsed employees from CSV:', parsed.length)
 
         if (parsed.length === 0) {
           throw new Error('Nenhum registro válido encontrado no arquivo')
@@ -303,8 +306,12 @@ export default function DashboardPage() {
           role: emp.role
         }))
 
+        console.log('Prepared employees for upsert:', toCreate.length)
+        console.log('Sample employee:', toCreate[0])
+
         // Bulk upsert - retorna estatísticas detalhadas
         const stats = await bulkUpsertEmployeesWithStatsAction(toCreate)
+        console.log('Upsert stats:', stats)
 
         // Recarregar a lista para incluir os novos
         await loadEmployees()
