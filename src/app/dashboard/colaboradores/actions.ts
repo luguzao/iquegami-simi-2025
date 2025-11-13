@@ -166,78 +166,73 @@ export async function bulkCreateEmployeesAction(employees: Omit<Employee, 'id'>[
   return (data ?? []) as Employee[]
 }
 
-// Nova action com estatísticas detalhadas
+// Nova action com estatísticas detalhadas - processamento em lotes de 100
 export async function bulkUpsertEmployeesWithStatsAction(
   employees: Omit<Employee, 'id'>[]
 ): Promise<{ added: number; updated: number; errors: number; total: number }> {
-  console.log('bulkUpsertEmployeesWithStatsAction called with', employees.length, 'employees')
-
   if (employees.length === 0) {
     return { added: 0, updated: 0, errors: 0, total: 0 }
   }
 
-  // Server-side validation
-  for (const payload of employees) {
-    console.log('Validating employee:', payload.name, 'isInternal:', payload.isInternal)
+  // Processar em lotes de 100 para balancear performance e confiabilidade
+  const batchSize = 100
+  let totalAdded = 0
+  let totalUpdated = 0
+  let totalErrors = 0
 
-    if (payload.isInternal) {
-      if (!payload.store || !payload.position || !payload.sector || !payload.startDate) {
-        console.error('Validation failed for internal employee:', payload)
-        throw new Error(`Colaborador ${payload.name}: Para colaboradores internos, Loja, Cargo, Setor e Data de Início são obrigatórios`)
+  for (let i = 0; i < employees.length; i += batchSize) {
+    const batch = employees.slice(i, i + batchSize)
+    console.log(`Processing batch ${Math.floor(i/batchSize) + 1} with ${batch.length} employees`)
+
+    try {
+      // Buscar CPFs existentes para este lote
+      const cpfsToCheck = batch.map(e => e.cpf)
+      const { data: existingEmployees, error: existingError } = await supabase
+        .from('employees')
+        .select('cpf')
+        .in('cpf', cpfsToCheck)
+
+      if (existingError) {
+        console.error('Error fetching existing employees for batch:', existingError)
+        totalErrors += batch.length
+        continue
       }
-    } else {
-      if (!payload.role) {
-        console.error('Validation failed for external employee:', payload)
-        throw new Error(`Colaborador ${payload.name}: Para colaboradores externos, a função (role) é obrigatória`)
+
+      const existingCpfsSet = new Set((existingEmployees || []).map((e: any) => e.cpf))
+
+      // Contar quantos serão adicionados vs atualizados neste lote
+      const willBeUpdated = batch.filter(e => existingCpfsSet.has(e.cpf)).length
+      const willBeAdded = batch.length - willBeUpdated
+
+      // Fazer upsert deste lote
+      const { data, error } = await supabase
+        .from('employees')
+        .upsert(batch, {
+          onConflict: 'cpf',
+          ignoreDuplicates: false
+        })
+        .select()
+
+      if (error) {
+        console.error('Erro no batch upsert:', error)
+        totalErrors += batch.length
+      } else {
+        totalAdded += willBeAdded
+        totalUpdated += willBeUpdated
+        console.log(`Batch successful: added ${willBeAdded}, updated ${willBeUpdated}`)
       }
+    } catch (batchError) {
+      console.error('Exception in batch processing:', batchError)
+      totalErrors += batch.length
     }
   }
 
-  console.log('Validation passed, proceeding with upsert')
-
-  // Buscar CPFs existentes antes do upsert para calcular estatísticas
-  const cpfsToCheck = employees.map(e => e.cpf)
-  console.log('Checking existing CPFs:', cpfsToCheck)
-
-  const { data: existingEmployees, error: existingError } = await supabase
-    .from('employees')
-    .select('cpf')
-    .in('cpf', cpfsToCheck)
-
-  if (existingError) {
-    console.error('Error fetching existing employees:', existingError)
-    throw new Error(`Erro ao verificar CPFs existentes: ${existingError.message}`)
-  }
-
-  const existingCpfsSet = new Set((existingEmployees || []).map((e: any) => e.cpf))
-  console.log('Existing CPFs found:', Array.from(existingCpfsSet))
-
-  // Contar quantos serão adicionados vs atualizados
-  const willBeUpdated = employees.filter(e => existingCpfsSet.has(e.cpf)).length
-  const willBeAdded = employees.length - willBeUpdated
-  console.log(`Will add ${willBeAdded}, update ${willBeUpdated}`)
-
-  // Fazer um único upsert de todos os registros
-  console.log('Performing upsert with employees:', employees)
-  const { data, error } = await supabase
-    .from('employees')
-    .upsert(employees, {
-      onConflict: 'cpf',
-      ignoreDuplicates: false
-    })
-    .select()
-
-  if (error) {
-    console.error('Erro no bulk upsert:', error)
-    throw new Error(`Erro ao importar colaboradores: ${error.message}`)
-  }
-
-  console.log('Upsert successful, inserted/updated:', data?.length || 0)
+  console.log(`Total results: added ${totalAdded}, updated ${totalUpdated}, errors ${totalErrors}`)
 
   return {
-    added: willBeAdded,
-    updated: willBeUpdated,
-    errors: 0,
+    added: totalAdded,
+    updated: totalUpdated,
+    errors: totalErrors,
     total: employees.length
   }
 }
