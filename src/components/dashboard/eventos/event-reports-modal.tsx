@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button'
 import dayjs from 'dayjs'
 import { Event } from '@/types/event'
+import ExcelJS from 'exceljs'
 
 type AttendanceRow = {
   employee_id: string
@@ -49,16 +50,7 @@ export default function EventReportsModal({ open, onOpenChange, event }: Props) 
       
       setExportProgress(`Processando ${exportRows.length} registros...`)
       
-      let ExcelJS
-      try {
-        ExcelJS = await import('exceljs')
-      } catch (importError) {
-        console.error('Erro ao importar exceljs:', importError)
-        alert('Erro ao carregar biblioteca de exportação. Verifique se a dependência exceljs está instalada corretamente.')
-        return
-      }
-
-      const workbook = new ExcelJS.default.Workbook()
+      const workbook = new ExcelJS.Workbook()
 
       // Calcular os dias do evento
       const startDate = dayjs(event.startDate)
