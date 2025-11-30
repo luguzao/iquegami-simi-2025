@@ -1,11 +1,51 @@
 import createServerSupabase from "@/lib/supabase-server";
 
+interface AttendanceLog {
+  id: string;
+  employee_id: string | null;
+  qr_content: string | null;
+  type: "checkin" | "checkout";
+  created_at: string;
+  note: string | null;
+  manual: boolean;
+  event_id: string | null;
+}
+
+interface Employee {
+  id: string;
+  name: string;
+  cpf: string;
+  store: string | null;
+  position: string | null;
+  role: string | null;
+  isInternal: boolean;
+}
+
+interface Event {
+  id: string;
+  name: string;
+  location: string;
+  start_date: string;
+  end_date: string;
+}
+
+interface ProcessedLog extends AttendanceLog {
+  employee_name: string | null;
+  employee_cpf: string | null;
+  employee_store: string | null;
+  employee_position: string | null;
+  employee_role: string | null;
+  employee_isInternal: boolean | null;
+  event_name: string | null;
+  event_location: string | null;
+}
+
 export async function GET(req: Request) {
   try {
     const supabase = createServerSupabase();
 
     // Buscar TODOS os registros de auditoria com paginação
-    const allLogs: any[] = [];
+    const allLogs: AttendanceLog[] = [];
     const pageSize = 1000;
     let hasMore = true;
     let offset = 0;
@@ -19,7 +59,6 @@ export async function GET(req: Request) {
         .range(offset, offset + pageSize - 1);
 
       if (error) {
-        console.error("auditoria/export fetch error", error);
         return new Response(
           JSON.stringify({ error: error.message || String(error) }),
           { status: 500 }
@@ -34,27 +73,18 @@ export async function GET(req: Request) {
 
       // Limite de segurança para evitar loops infinitos
       if (offset > 50000) {
-        console.warn("Reached maximum offset limit, stopping pagination");
         break;
       }
     }
-
-    console.log(`Total logs fetched: ${allLogs.length}`);
-    const logsWithEventId = allLogs.filter(l => l.event_id);
-    console.log(`Logs with event_id: ${logsWithEventId.length}`);
-
-    // Debug: mostrar qr_contents únicos
-    const uniqueQrContents = [...new Set(allLogs.map(l => l.qr_content).filter(Boolean))];
-    console.log(`Unique QR contents (${uniqueQrContents.length}):`, uniqueQrContents.slice(0, 10));
 
     const logs = allLogs;
 
     // Buscar informações dos colaboradores
     const employeeIds = Array.from(
-      new Set(logs.map((l: any) => l.employee_id).filter(Boolean))
-    ).filter(id => id && typeof id === 'string' && id.length > 0);
+      new Set(logs.map((l) => l.employee_id).filter(Boolean))
+    ).filter((id): id is string => id !== null && typeof id === 'string' && id.length > 0);
 
-    let employeesMap: Record<string, any> = {};
+    let employeesMap: Record<string, Employee> = {};
     if (employeeIds.length > 0) {
       // Processar em lotes para evitar problemas com queries muito grandes
       const batchSize = 100;
@@ -66,12 +96,11 @@ export async function GET(req: Request) {
           .in("id", batch);
 
         if (empError) {
-          console.error("Error fetching employees batch:", empError);
           continue;
         }
 
         if (emps) {
-          emps.forEach((e: any) => {
+          emps.forEach((e) => {
             employeesMap[e.id] = e;
           });
         }
@@ -80,12 +109,12 @@ export async function GET(req: Request) {
 
     // Buscar informações de eventos (por event_id direto, qr_content, ou timestamp)
     const eventIdsFromLogs = logs
-      .map((l: any) => l.event_id)
+      .map((l) => l.event_id)
       .filter(Boolean)
-      .filter(id => id && typeof id === 'string' && id.length > 0);
+      .filter((id): id is string => id !== null && typeof id === 'string' && id.length > 0);
 
-    const qrContents = logs.map((l: any) => l.qr_content).filter(Boolean);
-    let eventsMap: Record<string, any> = {};
+    const qrContents = logs.map((l) => l.qr_content).filter(Boolean);
+    let eventsMap: Record<string, Event & { startTime?: number | null; endTime?: number | null }> = {};
 
     // Primeiro, buscar eventos pelos event_id diretos
     if (eventIdsFromLogs.length > 0) {
@@ -95,7 +124,7 @@ export async function GET(req: Request) {
         .in("id", eventIdsFromLogs);
 
       if (!eventsError && eventsById) {
-        eventsById.forEach((e: any) => {
+        eventsById.forEach((e) => {
           eventsMap[e.id] = e;
         });
       }
@@ -103,12 +132,12 @@ export async function GET(req: Request) {
 
     // Segundo, tentar buscar eventos pelos IDs que podem estar no qr_content
     const potentialEventIds = qrContents
-      .map((qc: string) => {
+      .map((qc) => {
+        if (!qc) return null;
         const matches = qc.match(/\d+/g);
         return matches ? matches[0] : null;
       })
-      .filter((id: string | null) => id && /^\d+$/.test(id))
-      .map((id: string) => id)
+      .filter((id): id is string => id !== null && /^\d+$/.test(id))
       .filter((id) => !eventsMap[id]);
 
     if (potentialEventIds.length > 0) {
@@ -118,7 +147,7 @@ export async function GET(req: Request) {
         .in("id", potentialEventIds);
 
       if (!eventsQrError && eventsByQr) {
-        eventsByQr.forEach((e: any) => {
+        eventsByQr.forEach((e) => {
           eventsMap[e.id] = e;
         });
       }
@@ -130,32 +159,17 @@ export async function GET(req: Request) {
       .select("id,name,location,start_date,end_date")
       .order("start_date", { ascending: false });
 
-    console.log(`Found ${allEvents?.length || 0} total events in database`);
-    if (allEvents && allEvents.length > 0) {
-      console.log("Sample events:", allEvents.slice(0, 3).map(e => ({
-        id: e.id,
-        name: e.name,
-        start: e.start_date,
-        end: e.end_date
-      })));
-    }
-
     if (!allEventsError && allEvents) {
       // Criar mapa de eventos por timestamp para detecção rápida
-      const eventsByTimestamp: any[] = allEvents.map(event => ({
+      const eventsByTimestamp: (Event & { startTime: number | null; endTime: number | null })[] = allEvents.map(event => ({
         ...event,
         startTime: event.start_date ? new Date(event.start_date).getTime() : null,
         endTime: event.end_date ? new Date(event.end_date).getTime() : null,
       }));
-      
-      console.log('Events with timestamps:');
-      eventsByTimestamp.forEach(evt => {
-        console.log(`Event ${evt.name}: start_date="${evt.start_date}" -> ${evt.startTime}, end_date="${evt.end_date}" -> ${evt.endTime}`);
-      });
 
       // Para cada log sem evento detectado, tentar encontrar por timestamp
-      logs.forEach((log: any) => {
-        if (eventsMap[log.event_id]) return; // Já tem evento por event_id
+      logs.forEach((log) => {
+        if (eventsMap[log.event_id || '']) return; // Já tem evento por event_id
 
         // Verificar se qr_content já indicou um evento
         let hasEventFromQr = false;
@@ -192,11 +206,8 @@ export async function GET(req: Request) {
       });
     }
 
-    console.log(`Total events detected: ${Object.keys(eventsMap).length}`);
-    console.log('Events in map:', Object.keys(eventsMap).map(id => `${id}: ${eventsMap[id].name} (${eventsMap[id].startTime} - ${eventsMap[id].endTime})`));
-
     // Preparar dados para exportação
-    const items = logs.map((d: any) => {
+    const items: ProcessedLog[] = logs.map((d) => {
       // Tentar encontrar funcionário por employee_id primeiro, depois por qr_content
       let emp = d.employee_id ? employeesMap[d.employee_id] : null;
       if (!emp && d.qr_content) {
@@ -218,15 +229,12 @@ export async function GET(req: Request) {
       // Se ainda não encontrou evento, tentar detecção por timestamp
       if (!event) {
         const logTime = new Date(d.created_at).getTime();
-        console.log(`Checking timestamp for log ${d.id}: ${d.created_at} (${logTime})`);
         
         // Procurar evento que contenha este timestamp
         for (const eventId in eventsMap) {
           const evt = eventsMap[eventId];
-          console.log(`Checking event ${evt.name}: start=${evt.startTime}, end=${evt.endTime}, log=${logTime}`);
           if (evt.startTime && evt.endTime && evt.startTime <= logTime && logTime <= evt.endTime) {
             event = evt;
-            console.log(`Timestamp match found for log ${d.id}: Event ${evt.name} (${evt.startTime} - ${evt.endTime})`);
             break;
           }
         }
@@ -240,7 +248,6 @@ export async function GET(req: Request) {
               const twoHours = 2 * 60 * 60 * 1000; // 2 horas em ms
               if (timeDiff <= twoHours) {
                 event = evt;
-                console.log(`Heuristic match found for log ${d.id}: Event ${evt.name} (within 2h of start)`);
                 break;
               }
             }
@@ -266,7 +273,7 @@ export async function GET(req: Request) {
       "Data/Hora,Funcionário,CPF,Loja,Cargo,Função,Evento,Local do Evento,Tipo,Manual,Motivo\n";
 
     const csvRows = items
-      .map((item: any) => {
+      .map((item) => {
         // Formatar data sem vírgula para evitar problemas no CSV
         // Usar timezone do Brasil (America/Sao_Paulo)
         const date = new Date(item.created_at);
@@ -337,7 +344,6 @@ export async function GET(req: Request) {
       },
     });
   } catch (err) {
-    console.error("auditoria/export error", err);
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
     });

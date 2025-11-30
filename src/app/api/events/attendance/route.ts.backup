@@ -1,0 +1,380 @@
+import createServerSupabase from '@/lib/supabase-server'
+import dayjs from 'dayjs'
+
+export async function GET(req: Request) {
+  try {
+    console.log('API chamada - início')
+    const supabase = createServerSupabase()
+    const url = new URL(req.url)
+    const eventId = url.searchParams.get('eventId') || undefined
+
+    if (!eventId) {
+      return new Response(JSON.stringify({ error: 'eventId required' }), { status: 400 })
+    }
+
+    console.log(`Buscando dados para evento: ${eventId}`)
+
+    // Buscar TODAS as inscrições do evento com paginação
+    const allRegistrations: any[] = []
+    const pageSize = 1000
+    let hasMore = true
+    let offset = 0
+
+    while (hasMore) {
+      const { data: regs, error: regsErr } = await supabase
+        .from('event_registrations')
+        .select('employee_id, registered_at, status, employees(id, name, cpf, position, store, sector, role, isInternal)')
+        .eq('event_id', eventId)
+        .order('registered_at', { ascending: true })
+        .range(offset, offset + pageSize - 1)
+
+      if (regsErr) {
+        return new Response(JSON.stringify({ error: regsErr.message || String(regsErr) }), { status: 500 })
+      }
+
+      const registrations = regs || []
+      allRegistrations.push(...registrations)
+
+      hasMore = registrations.length === pageSize
+      offset += pageSize
+
+      // Limite de segurança para evitar loops infinitos
+      if (offset > 50000) {
+        break
+      }
+    }
+
+    // Buscar TODOS os registros de attendance_logs do evento (sempre, para detectar múltiplos check-ins)
+    let attendanceFromLogs: any[] = []
+    // Buscar informações do evento
+    const { data: eventData, error: eventErr } = await supabase
+      .from('events')
+      .select('id, name, start_date, end_date')
+      .eq('id', eventId)
+      .single()
+
+    if (!eventErr && eventData && eventData.start_date && eventData.end_date) {
+      // Buscar todos os attendance_logs no período do evento
+      hasMore = true
+      offset = 0
+
+      while (hasMore) {
+        const { data: logs, error: logsErr } = await supabase
+          .from('attendance_logs')
+          .select('id, employee_id, created_at, type')
+          .gte('created_at', eventData.start_date)
+          .lte('created_at', eventData.end_date)
+          .in('type', ['checkin', 'checkout'])
+          .range(offset, offset + pageSize - 1)
+
+        if (logsErr) {
+          break
+        }
+
+        const attendanceLogs = logs || []
+        attendanceFromLogs.push(...attendanceLogs)
+
+        hasMore = attendanceLogs.length === pageSize
+        offset += pageSize
+
+        // Limite de segurança para evitar loops infinitos
+        if (offset > 50000) {
+          break
+        }
+      }
+    }
+
+    // Buscar TODOS os registros de presença do evento com paginação (event_attendance)
+    const allAttendance: any[] = []
+    hasMore = true
+    offset = 0
+
+    while (hasMore) {
+      const { data: atts, error: attsErr } = await supabase
+        .from('event_attendance')
+        .select('employee_id, checkin_at, checkout_at, note, manual')
+        .eq('event_id', eventId)
+        .range(offset, offset + pageSize - 1)
+
+      if (attsErr) {
+        // Não é erro crítico, continua sem os dados de presença
+        break
+      }
+
+      const attendance = atts || []
+      allAttendance.push(...attendance)
+
+      hasMore = attendance.length === pageSize
+      offset += pageSize
+
+      // Limite de segurança para evitar loops infinitos
+      if (offset > 50000) {
+        break
+      }
+    }
+
+    // Buscar informações dos funcionários
+    const employeeIds = new Set<string>()
+
+    // Adicionar IDs dos inscritos
+    allRegistrations.forEach(reg => employeeIds.add(String(reg.employee_id)))
+
+    // Adicionar IDs dos que tiveram presença por logs
+    attendanceFromLogs.forEach(log => employeeIds.add(String(log.employee_id)))
+
+    // Adicionar IDs dos que têm registros em event_attendance
+    allAttendance.forEach(att => employeeIds.add(String(att.employee_id)))
+
+    // Buscar dados dos funcionários
+    const employeesMap = new Map<string, any>()
+    if (employeeIds.size > 0) {
+      const employeeIdsArray = Array.from(employeeIds)
+      hasMore = true
+      offset = 0
+
+      while (hasMore && offset < employeeIdsArray.length) {
+        const batch = employeeIdsArray.slice(offset, offset + pageSize)
+        const { data: emps, error: empErr } = await supabase
+          .from('employees')
+          .select('id, name, cpf, position, store, sector, role, isInternal')
+          .in('id', batch)
+
+        if (!empErr && emps) {
+          emps.forEach(emp => employeesMap.set(String(emp.id), emp))
+        }
+
+        offset += pageSize
+      }
+
+      // Para funcionários não encontrados, tentar busca individual
+      const notFoundIds = employeeIdsArray.filter(id => !employeesMap.has(String(id)))
+      if (notFoundIds.length > 0) {
+        for (const id of notFoundIds.slice(0, 20)) { // Limitar para não sobrecarregar
+          try {
+            const { data: emp, error: empErr } = await supabase
+              .from('employees')
+              .select('id, name, cpf, position, store, sector, role, isInternal')
+              .eq('id', id)
+              .single()
+
+            if (!empErr && emp) {
+              employeesMap.set(String(emp.id), emp)
+            }
+          } catch (e) {
+            // Ignorar erros individuais
+          }
+        }
+      }
+    }
+
+    // Build maps
+    const attMap = new Map<string, any>()
+    allAttendance.forEach((a: any) => { attMap.set(String(a.employee_id), a) })
+
+    const regsMap = new Map<string, any>()
+    allRegistrations.forEach((r: any) => { regsMap.set(String(r.employee_id), r) })
+
+    // Criar mapa de presença por logs (para eventos sem inscrições)
+    const logsAttendanceMap = new Map<string, { checkin_at: string | null, checkout_at: string | null }>()
+    attendanceFromLogs.forEach((log: any) => {
+      const empId = String(log.employee_id)
+      const existing = logsAttendanceMap.get(empId) || { checkin_at: null, checkout_at: null }
+
+      if (log.type === 'checkin' && (!existing.checkin_at || log.created_at < existing.checkin_at)) {
+        existing.checkin_at = log.created_at
+      } else if (log.type === 'checkout' && (!existing.checkout_at || log.created_at > existing.checkout_at)) {
+        existing.checkout_at = log.created_at
+      }
+
+      logsAttendanceMap.set(empId, existing)
+    })
+
+    // Verificar se é evento multi-dia
+    const isMultiDay = eventData && eventData.start_date && eventData.end_date &&
+      dayjs(eventData.end_date).diff(dayjs(eventData.start_date), 'day') > 0
+
+    // Build unified list
+    const itemsUnsorted: any[] = []
+
+    console.log(`allRegistrations: ${allRegistrations.length}, allAttendance: ${allAttendance.length}, logs: ${attendanceFromLogs.length}`)
+
+    if (allRegistrations.length > 0) {
+      console.log(`Iniciando processamento de ${allRegistrations.length} inscrições`)
+      // Se há inscrições, usar elas como base
+      allRegistrations.forEach((reg: any) => {
+        const id = String(reg.employee_id)
+        const ea = attMap.get(id) || null
+        const logsAtt = logsAttendanceMap.get(id) || null
+
+        // Usar dados de event_attendance prioritariamente, senão logs
+        const checkin_at = ea?.checkin_at || logsAtt?.checkin_at || null
+        const checkout_at = ea?.checkout_at || logsAtt?.checkout_at || null
+
+        // If registration contains nested employees, normalize
+        let regEmp = null
+        if (reg.employees) {
+          regEmp = Array.isArray(reg.employees) ? reg.employees[0] : reg.employees
+        }
+
+        const emp = employeesMap.get(id) || regEmp
+
+        // Para eventos multi-dia, SEMPRE criar um registro por dia para cada funcionário inscrito
+        if (isMultiDay) {
+          // Buscar todos os check-ins deste funcionário no período do evento
+          const employeeCheckins = attendanceFromLogs.filter(log =>
+            String(log.employee_id) === id && log.type === 'checkin' &&
+            dayjs(log.created_at).isSameOrAfter(dayjs(eventData.start_date)) &&
+            dayjs(log.created_at).isSameOrBefore(dayjs(eventData.end_date))
+          )
+
+          // Buscar todos os check-outs deste funcionário no período do evento
+          const employeeCheckouts = attendanceFromLogs.filter(log =>
+            String(log.employee_id) === id && log.type === 'checkout' &&
+            dayjs(log.created_at).isSameOrAfter(dayjs(eventData.start_date)) &&
+            dayjs(log.created_at).isSameOrBefore(dayjs(eventData.end_date))
+          )
+
+          // Agrupar check-ins e check-outs por dia
+          const checkinsByDay = new Map<string, any[]>()
+          const checkoutsByDay = new Map<string, any[]>()
+
+          employeeCheckins.forEach(checkin => {
+            const day = dayjs(checkin.created_at).format('YYYY-MM-DD')
+            if (!checkinsByDay.has(day)) {
+              checkinsByDay.set(day, [])
+            }
+            checkinsByDay.get(day)!.push(checkin)
+          })
+
+          employeeCheckouts.forEach(checkout => {
+            const day = dayjs(checkout.created_at).format('YYYY-MM-DD')
+            if (!checkoutsByDay.has(day)) {
+              checkoutsByDay.set(day, [])
+            }
+            checkoutsByDay.get(day)!.push(checkout)
+          })
+
+          // Criar um registro por dia do evento
+          const eventStart = dayjs(eventData.start_date)
+          const eventEnd = dayjs(eventData.end_date)
+          const totalDays = eventEnd.diff(eventStart, 'day') + 1
+
+          for (let i = 0; i < totalDays; i++) {
+            const day = eventStart.add(i, 'day').format('YYYY-MM-DD')
+            const dayCheckins = checkinsByDay.get(day) || []
+            const dayCheckouts = checkoutsByDay.get(day) || []
+
+            // Pegar o primeiro check-in do dia
+            const dayCheckin = dayCheckins.sort((a, b) => dayjs(a.created_at).valueOf() - dayjs(b.created_at).valueOf())[0]
+            // Pegar o último check-out do dia
+            const dayCheckout = dayCheckouts.sort((a, b) => dayjs(b.created_at).valueOf() - dayjs(a.created_at).valueOf())[0]
+
+            itemsUnsorted.push({
+              employee_id: id,
+              employee_name: emp?.name || 'N/A',
+              cpf: emp?.cpf || 'N/A',
+              position: emp?.position || 'N/A',
+              store: emp?.store || 'N/A',
+              sector: emp?.sector || 'N/A',
+              role: emp?.role || 'N/A',
+              isInternal: emp?.isInternal === true,
+              registered_at: reg.registered_at || null,
+              registration_status: reg.status || null,
+              checkin_at: dayCheckin?.created_at || null,
+              checkout_at: dayCheckout?.created_at || null,
+              manual: ea?.manual || false,
+              note: ea?.note || null,
+              attendance_day: day
+            })
+          }
+        } else {
+          // Evento de um dia - usar lógica original
+          console.log(`Processando ${id} como evento de um dia`)
+          itemsUnsorted.push({
+            employee_id: id,
+            employee_name: emp?.name || 'N/A',
+            cpf: emp?.cpf || 'N/A',
+            position: emp?.position || 'N/A',
+            store: emp?.store || 'N/A',
+            sector: emp?.sector || 'N/A',
+            role: emp?.role || 'N/A',
+            isInternal: emp?.isInternal === true,
+            registered_at: reg.registered_at || null,
+            registration_status: reg.status || null,
+            checkin_at,
+            checkout_at,
+            manual: ea?.manual || false,
+            note: ea?.note || null,
+          })
+        }
+      })
+    } else {
+      // Se não há inscrições, usar presença por logs como base
+      attendanceFromLogs.forEach((log: any) => {
+        const id = String(log.employee_id)
+        if (itemsUnsorted.some(item => item.employee_id === id)) return // Já adicionado
+
+        const ea = attMap.get(id) || null
+        const logsAtt = logsAttendanceMap.get(id) || null
+
+        const checkin_at = ea?.checkin_at || logsAtt?.checkin_at || null
+        const checkout_at = ea?.checkout_at || logsAtt?.checkout_at || null
+
+        const emp = employeesMap.get(id)
+
+        itemsUnsorted.push({
+          employee_id: id,
+          employee_name: emp?.name || 'N/A',
+          cpf: emp?.cpf || 'N/A',
+          position: emp?.position || 'N/A',
+          store: emp?.store || 'N/A',
+          sector: emp?.sector || 'N/A',
+          role: emp?.role || 'N/A',
+          isInternal: emp?.isInternal === true,
+          registered_at: null, // Não há inscrição
+          registration_status: null,
+          checkin_at,
+          checkout_at,
+          manual: ea?.manual || false,
+          note: ea?.note || null,
+        })
+      })
+
+      // Também incluir registros diretos de event_attendance que não estão nos logs
+      allAttendance.forEach((att: any) => {
+        const id = String(att.employee_id)
+        if (itemsUnsorted.some(item => item.employee_id === id)) return // Já adicionado
+
+        const emp = employeesMap.get(id)
+
+        itemsUnsorted.push({
+          employee_id: id,
+          employee_name: emp?.name || 'N/A',
+          cpf: emp?.cpf || 'N/A',
+          position: emp?.position || 'N/A',
+          store: emp?.store || 'N/A',
+          sector: emp?.sector || 'N/A',
+          role: emp?.role || 'N/A',
+          isInternal: emp?.isInternal === true,
+          registered_at: null,
+          registration_status: null,
+          checkin_at: att.checkin_at || null,
+          checkout_at: att.checkout_at || null,
+          manual: att.manual || false,
+          note: att.note || null,
+        })
+      })
+    }
+
+    // Sort by employee_name (fallback to id) for consistent ordering
+    const items = itemsUnsorted.sort((a: any, b: any) => {
+      const an = a.employee_name || a.employee_id
+      const bn = b.employee_name || b.employee_id
+      return String(an).localeCompare(String(bn))
+    })
+
+    return new Response(JSON.stringify({ items }), { headers: { 'Content-Type': 'application/json' } })
+  } catch (err) {
+    return new Response(JSON.stringify({ error: String(err) }), { status: 500 })
+  }
+}
