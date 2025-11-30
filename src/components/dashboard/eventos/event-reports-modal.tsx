@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import dayjs from 'dayjs'
@@ -108,7 +108,7 @@ export default function EventReportsModal({ open, onOpenChange, event }: Props) 
       const percent = (v: number, total: number) => (total === 0 ? 0 : Math.round((v / total) * 10000) / 100)
 
       // Criar planilhas para cada dia
-      eventDays.forEach((day, index) => {
+      eventDays.forEach((day) => {
         const dayKey = day.format('YYYY-MM-DD')
         const dayStr = day.format('DD-MM')
         const dayData = dataByDay[dayKey]
@@ -243,136 +243,6 @@ export default function EventReportsModal({ open, onOpenChange, event }: Props) 
       console.error('export exceljs', err)
       alert('Erro ao exportar. Verifique se a dependência exceljs está instalada.')
       setExportProgress('')
-    } finally {
-      setExporting(null)
-    }
-  }
-
-  const handleExportPresenca = async () => {
-    if (!event) return
-    setExporting('presenca')
-    try {
-      const res = await fetch(`/api/events/attendance?eventId=${encodeURIComponent(event.id)}`)
-      const json = await res.json()
-      const exportRows: AttendanceRow[] = json.items || []
-      
-      let ExcelJS
-      try {
-        ExcelJS = await import('exceljs')
-      } catch (importError) {
-        console.error('Erro ao importar exceljs:', importError)
-        alert('Erro ao carregar biblioteca de exportação. Verifique se a dependência exceljs está instalada corretamente.')
-        return
-      }
-
-      const workbook = new ExcelJS.default.Workbook()
-      const worksheet = workbook.addWorksheet('Presença')
-      worksheet.columns = [
-        { header: 'Nome', key: 'nome', width: 30 },
-        { header: 'CPF', key: 'cpf', width: 15 },
-        { header: 'Cargo', key: 'cargo', width: 25 },
-        { header: 'Loja', key: 'loja', width: 10 },
-        { header: 'Setor', key: 'setor', width: 20 },
-        { header: 'Função', key: 'funcao', width: 20 },
-        { header: 'Horario_CheckIn', key: 'checkin', width: 20 },
-        { header: 'Horario_CheckOut', key: 'checkout', width: 20 },
-        { header: 'Motivo_Nota', key: 'nota', width: 30 },
-      ]
-
-      const presence = exportRows.filter((r) => r.checkin_at)
-      presence.forEach((r: any) => {
-        const name = r.employee_name && r.employee_name !== 'N/A' ? r.employee_name :
-                    r.name ? r.name :
-                    r.employee_id ? `ID: ${r.employee_id}` : 'N/A'
-        worksheet.addRow({
-          nome: name,
-          cpf: r.cpf || 'N/A',
-          cargo: r.position || 'N/A',
-          loja: r.store || 'N/A',
-          setor: r.sector || 'N/A',
-          funcao: r.isInternal === false ? r.role || 'N/A' : 'N/A',
-          checkin: fmt(r.checkin_at),
-          checkout: fmt(r.checkout_at),
-          nota: r.note || (r.manual ? 'Manual' : 'N/A'),
-        })
-      })
-
-      const buffer = await workbook.xlsx.writeBuffer()
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      const fileNameSafe = (event.name || 'evento').replace(/[^a-z0-9\-\_ ]/gi, '')
-      a.href = url
-      a.download = `${fileNameSafe}_presenca_${new Date().toISOString().slice(0, 10)}.xlsx`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      console.error('export presenca', err)
-      alert('Erro ao exportar presenca')
-    } finally {
-      setExporting(null)
-    }
-  }
-
-  const handleExportFaltaram = async () => {
-    if (!event) return
-    setExporting('faltaram')
-    try {
-      const res = await fetch(`/api/events/attendance?eventId=${encodeURIComponent(event.id)}`)
-      const json = await res.json()
-      const exportRows: AttendanceRow[] = json.items || []
-      
-      let ExcelJS
-      try {
-        ExcelJS = await import('exceljs')
-      } catch (importError) {
-        console.error('Erro ao importar exceljs:', importError)
-        alert('Erro ao carregar biblioteca de exportação. Verifique se a dependência exceljs está instalada corretamente.')
-        return
-      }
-
-      const workbook = new ExcelJS.default.Workbook()
-      const worksheet = workbook.addWorksheet('Faltaram')
-      worksheet.columns = [
-        { header: 'Nome', key: 'nome', width: 30 },
-        { header: 'CPF', key: 'cpf', width: 15 },
-        { header: 'Cargo', key: 'cargo', width: 25 },
-        { header: 'Loja', key: 'loja', width: 10 },
-        { header: 'Setor', key: 'setor', width: 20 },
-        { header: 'Função', key: 'funcao', width: 20 },
-      ]
-
-      const faltaram = exportRows.filter((r) => !r.checkin_at)
-      faltaram.forEach((r: any) => {
-        const name = r.employee_name && r.employee_name !== 'N/A' ? r.employee_name :
-                    r.name ? r.name :
-                    r.employee_id ? `ID: ${r.employee_id}` : 'N/A'
-        worksheet.addRow({
-          nome: name,
-          cpf: r.cpf || 'N/A',
-          cargo: r.position || 'N/A',
-          loja: r.store || 'N/A',
-          setor: r.sector || 'N/A',
-          funcao: r.isInternal === false ? r.role || 'N/A' : 'N/A',
-        })
-      })
-
-      const buffer = await workbook.xlsx.writeBuffer()
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      const fileNameSafe = (event.name || 'evento').replace(/[^a-z0-9\-\_ ]/gi, '')
-      a.href = url
-      a.download = `${fileNameSafe}_faltaram_${new Date().toISOString().slice(0, 10)}.xlsx`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      console.error('export faltaram', err)
-      alert('Erro ao exportar faltaram')
     } finally {
       setExporting(null)
     }

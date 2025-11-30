@@ -4,7 +4,6 @@ import React from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Event } from '@/types/event'
 import EventForm from './event-form'
-import { useToast } from '@/components/ui/toast-provider'
 
 type Props = {
   open: boolean

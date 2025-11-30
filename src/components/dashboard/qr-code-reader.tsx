@@ -396,25 +396,6 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
     }
   }, [selectedDeviceId])
 
-  const formatQRData = (data: string) => {
-    // Tentar determinar o tipo de QR code
-    if (data.startsWith('http://') || data.startsWith('https://')) {
-      return { type: 'URL', value: data }
-    } else if (data.startsWith('mailto:')) {
-      return { type: 'Email', value: data.replace('mailto:', '') }
-    } else if (data.startsWith('tel:')) {
-      return { type: 'Telefone', value: data.replace('tel:', '') }
-    } else if (data.startsWith('WIFI:')) {
-      return { type: 'WiFi', value: 'Configuração de rede WiFi' }
-    } else if (data.includes('@') && data.includes('.')) {
-      return { type: 'Email', value: data }
-    } else if (/^\d+$/.test(data)) {
-      return { type: 'Número', value: data }
-    } else {
-      return { type: 'Texto', value: data }
-    }
-  }
-
   // When scannedData is set, try to fetch employee info and last attendance
   useEffect(() => {
     if (!scannedData) {
@@ -528,7 +509,7 @@ export function QRCodeReader({ isOpen, onClose, onScan }: QRCodeReaderProps) {
       }
     } catch (err: any) {
   console.error('Erro ao perform attendance', err)
-  try { toast.error('Erro ao registrar ponto: ' + (err.message || String(err))) } catch (e) { /* ignore */ }
+  try { toast.error('Erro ao registrar ponto: ' + (err.message || String(err))) } catch { /* ignore */ }
     } finally {
       setIsPerforming(false)
     }
